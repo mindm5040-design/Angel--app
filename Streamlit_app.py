@@ -4,93 +4,8 @@ import base64
 import os
 import re
 from pathlib import Path
-import streamlit.components.v1 as components
 
 st.set_page_config(page_title="Angel AI", page_icon="🧠", layout="centered")
-
-# --- MOTEUR AUDIO + LECTURE VOCALE QUI MARCHE SUR MOBILE ---
-components.html("""
-<script>
-const parentDoc = window.parent.document;
-
-// Débloque l'audio au premier clic
-let audioCtx = null;
-function getCtx(){
-  if(!audioCtx){
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  }
-  return audioCtx;
-}
-
-function playPop(){
-  try{
-    const ctx = getCtx();
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
-    o.type = 'sine'; o.frequency.value = 800;
-    o.connect(g); g.connect(ctx.destination);
-    g.gain.setValueAtTime(0.8, ctx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime+0.2);
-    o.start(); o.stop(ctx.currentTime+0.2);
-  }catch(e){}
-}
-
-function playDing(){
-  try{
-    const ctx = getCtx();
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
-    o.type='sine'; o.frequency.value=1200;
-    o.connect(g); g.connect(ctx.destination);
-    g.gain.setValueAtTime(0.6, ctx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime+0.4);
-    o.start(); o.stop(ctx.currentTime+0.4);
-  }catch(e){}
-}
-
-function speakText(txt){
-  if(!txt) return;
-  window.speechSynthesis.cancel();
-  const clean = txt.replace(/\\$\\$|\\$/g,'').replace(/[\\[\\]]/g,'').substring(0,1000);
-  const u = new SpeechSynthesisUtterance(clean);
-  u.lang = 'fr-FR'; u.rate = 1; u.volume = 1;
-  window.speechSynthesis.speak(u);
-}
-
-// Ecoute envoi
-parentDoc.addEventListener('click', function(e){
-  const btn = e.target.closest('button[data-testid="stChatInputSubmitButton"]');
-  if(btn){
-    playPop();
-    localStorage.setItem('angel_waiting','1');
-  }
-}, true);
-
-// Ecoute messages
-setInterval(function(){
-  if(localStorage.getItem('angel_waiting')==='1'){
-    const msgs = parentDoc.querySelectorAll('div[data-testid="stChatMessage"]');
-    if(msgs.length>0 && msgs.length%2===0){
-      playDing();
-      localStorage.removeItem('angel_waiting');
-      // Auto lecture vocale si activé
-      if(localStorage.getItem('angel_tts_auto')==='1'){
-        const last = msgs[msgs.length-1];
-        speakText(last.innerText);
-      }
-    }
-  }
-}, 600);
-
-// Fonction appelée par les boutons 🔊
-window.angelSpeak = function(id){
-  const el = parentDoc.getElementById(id);
-  if(el){ speakText(el.innerText); }
-}
-window.angelStop = function(){ window.speechSynthesis.cancel(); }
-</script>
-<div style="display:none">Angel Audio Engine OK</div>
-""", height=0)
 
 def get_groq_key():
     try:
@@ -102,20 +17,24 @@ def get_groq_key():
 
 KEY = get_groq_key()
 
+# --- FIX MATHS ---
 def fix_latex(text):
     if not text: return text
+    # Convertit \[ \] en $$ $$ et \( \) en $ $
     text = re.sub(r'\\\[(.*?)\\\]', r'$$\1$$', text, flags=re.DOTALL)
     text = re.sub(r'\\\((.*?)\\\)', r'$\1$', text, flags=re.DOTALL)
     return text
 
 st.markdown("""
 <style>
-.stApp {background:#FCFCF9!important;}
-header, footer, #MainMenu {visibility:hidden!important;}
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=DM+Sans:wght@400;600&display=swap');
+.stApp {background:#FCFCF9!important; font-family:'DM Sans', sans-serif!important;}
+header, footer, #MainMenu,.stDeployButton {visibility:hidden!important;}
 .brain-container {display:flex; flex-direction:column; align-items:center; margin:10px 0 6px;}
-.brain-video {width:140px; height:140px; border-radius:50%; object-fit:cover; border:2px solid #E07A4F;}
-.angel-title {font-size:44px; font-weight:700; text-align:center; margin-top:14px;}
-.tts-btn {background:#0a0a0a!important; color:white!important; border-radius:20px!important; padding:4px 12px!important; font-size:12px!important;}
+.brain-video {width:140px; height:140px; border-radius:50%; object-fit:cover; box-shadow:0 0 40px rgba(224,122,79,0.3); border:2px solid #E07A4F;}
+.angel-title {font-family:'Space Grotesk'; font-size:44px; font-weight:700; letter-spacing:-2px; text-align:center; margin-top:14px;}
+div[data-testid="stButton"] > button {background: rgba(255,255,255,0.75)!important; backdrop-filter: blur(20px)!important; border:1px solid rgba(0,0,0,0.06)!important; border-radius:18px!important; height:72px!important; font-family:'Space Grotesk'!important; font-weight:600!important; color:#0a0a0a!important;}
+button[kind="primary"] {background:#0a0a0a!important; color:white!important;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -126,47 +45,65 @@ def get_video_html():
         return f'<video class="brain-video" autoplay loop muted playsinline><source src="data:video/mp4;base64,{b64}" type="video/mp4"></video>'
     return '<div style="font-size:90px;">🧠</div>'
 
-st.markdown(f'<div class="brain-container">{get_video_html()}<div class="angel-title">Angel AI</div></div>', unsafe_allow_html=True)
-
-# Interrupteur lecture auto
-auto_tts = st.toggle("🔊 Lecture vocale auto", value=False)
-components.html(f"<script>localStorage.setItem('angel_tts_auto','{1 if auto_tts else 0}');</script>", height=0)
+st.markdown(f"""
+<div class="brain-container">
+  {get_video_html()}
+  <div class="angel-title">Angel AI</div>
+  <div style="color:#E07A4F; font-size:10px; letter-spacing:3px; font-weight:700; text-align:center; margin-top:6px;">NEURAL ENGINE • ACTIVE</div>
+</div>
+""", unsafe_allow_html=True)
 
 if not KEY:
-    st.warning("Mets ta cle GROQ")
+    st.warning("⚠️ Mets ta clé dans Settings → Secrets")
+    st.code('GROQ_API_KEY = "gsk_..."')
     st.stop()
 
 if "messages" not in st.session_state: st.session_state.messages=[]
-if "classe" not in st.session_state: st.session_state.classe="Premiere"
+if "classe" not in st.session_state: st.session_state.classe="Master 1"
 
 def ask_groq(q, img=None):
     try:
-        system_prompt = "Tu es Angel prof. Maths avec $$ $$."
-        url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {"Authorization": "Bearer " + KEY}
+        system_prompt = f"""Tu es Angel, prof niveau {st.session_state.classe}. 
+REGLE MATHS OBLIGATOIRE: Écris TOUTES les formules avec $$ $$ pour les grosses formules et $ $ pour les petites.
+Exemple: $$\\lim_{{x \\to 1}} \\frac{{x^2-1}}{{x-1}} = 2$$
+INTERDIT d'utiliser \\[ \\] ou \\( \\)."""
+
         if img:
-            b64 = base64.b64encode(img).decode()
-            payload = {"model": "meta-llama/llama-4-scout-17b-16e-instruct", "messages": [{"role": "user", "content": [{"type": "text", "text": q}, {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + b64}}]}]}
+            b64=base64.b64encode(img).decode()
+            payload={"model":"meta-llama/llama-4-scout-17b-16e-instruct","messages":[{"role":"user","content":[{"type":"text","text":f"{system_prompt}\n\n[{st.session_state.classe}] {q}"},{"type":"image_url","image_url":{"url":f"data:image/jpeg;base64,{b64}"}}]}]}
         else:
-            payload = {"model": "openai/gpt-oss-20b", "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": q}]}
-        r = requests.post(url, headers=headers, json=payload, timeout=60).json()
-        return fix_latex(r["choices"][0]["message"]["content"])
+            payload={"model":"openai/gpt-oss-20b","messages":[{"role":"system","content":system_prompt},{"role":"user","content":q}]}
+        r=requests.post("https://api.groq.com/openai/v1/chat/completions",headers={"Authorization":f"Bearer {KEY}"},json=payload,timeout=60).json()
+        content = r["choices"][0]["message"]["content"]
+        return fix_latex(content)
     except Exception as e:
         return f"Erreur: {e}"
 
-# Affichage messages avec bouton 🔊
-for i, m in enumerate(st.session_state.messages):
-    with st.chat_message(m["role"]):
-        st.markdown(f'<div id="msg-{i}">{fix_latex(m["content"])}</div>', unsafe_allow_html=True)
-        if m["role"] == "assistant":
-            components.html(f"""
-            <button onclick="window.parent.angelSpeak('msg-{i}')" style="background:#0a0a0a;color:white;border:none;border-radius:20px;padding:6px 14px;font-size:12px;cursor:pointer;margin-top:6px">🔊 Lire vocalement</button>
-            <button onclick="window.parent.angelStop()" style="background:#eee;color:#000;border:none;border-radius:20px;padding:6px 10px;font-size:12px;cursor:pointer;margin-left:6px">⏹️</button>
-            """, height=40)
+with st.expander(f"Niveau: {st.session_state.classe}", expanded=False):
+    for label, items in [("COLLEGE",["6e","5e","4e","3e"]),("LYCEE",["Seconde","Premiere","Terminale"]),("UNIVERSITE",["Licence 1","Licence 2","Licence 3","Master 1","Master 2","Doctorat"])]:
+        st.markdown(f'<div style="font-size:10px; letter-spacing:2px; color:#999; font-weight:700; margin:10px 0 6px;">{label}</div>', unsafe_allow_html=True)
+        cols=st.columns(3)
+        for i,c in enumerate(items):
+            with cols[i%3]:
+                if st.button(c, key=f"cl_{c}", use_container_width=True, type="primary" if c==st.session_state.classe else "secondary"):
+                    st.session_state.classe=c; st.rerun()
 
-prompt = st.chat_input("Question niveau " + st.session_state.classe + "...")
+for m in st.session_state.messages:
+    with st.chat_message(m["role"]):
+        st.markdown(fix_latex(m["content"]))
+
+with st.expander("📸 Photo devoir"):
+    up=st.file_uploader(" ", type=["jpg","png"], label_visibility="collapsed")
+    cam=st.camera_input(" ", label_visibility="collapsed")
+    img=cam.getvalue() if cam else (up.getvalue() if up else None)
+    if img and st.button("Analyser", type="primary", use_container_width=True):
+        rep=ask_groq("Explique cet exercice etape par etape", img)
+        st.session_state.messages+=[{"role":"user","content":"📸 Photo"},{"role":"assistant","content":rep}]
+        st.rerun()
+
+prompt=st.chat_input(f"Question niveau {st.session_state.classe}...")
 if prompt:
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    rep = ask_groq(prompt)
-    st.session_state.messages.append({"role": "assistant", "content": rep})
+    st.session_state.messages.append({"role":"user","content":prompt})
+    rep=ask_groq(prompt)
+    st.session_state.messages.append({"role":"assistant","content":rep})
     st.rerun()
