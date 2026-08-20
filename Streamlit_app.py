@@ -4,7 +4,7 @@ st.set_page_config(page_title="Angel", page_icon="🕊️", layout="centered")
 st.markdown("""
 <style>
 .stApp {background:#ffffff!important;}
-div[data-testid="stChatMessages"] {max-width:720px; margin:0 auto; padding-bottom:100px!important; gap:4px!important;}
+div[data-testid="stChatMessages"] {max-width:720px; margin:0 auto; padding-bottom:110px!important; gap:4px!important;}
 div[data-testid="stChatMessage"]:has(div[data-testid="chatAvatarIcon-user"]) {
     justify-content:flex-end!important; max-width:75%!important; margin-left:auto!important;
 }
@@ -12,34 +12,30 @@ div[data-testid="stChatMessage"]:has(div[data-testid="chatAvatarIcon-user"]) div
     background:#efe9dd!important; border-radius:18px 18px 4px 18px!important; padding:10px 14px!important;
 }
 
-/* FORCE LA LIGNE A RESTER HORIZONTALE SUR MOBILE */
+/* BARRE COMME TA CAPTURE */
 div[data-testid="stHorizontalBlock"] {
-    flex-wrap: nowrap!important;
-    display:flex!important;
-    align-items:center!important;
-    gap:6px!important;
-    max-width:720px; margin:0 auto;
-    position:fixed; bottom:10px; left:10px; right:10px;
-    background:white; padding:8px; border-radius:30px;
-    border:1px solid #e5e5e5; z-index:100;
-    box-shadow:0 2px 10px rgba(0,0,0,0.08);
+    flex-wrap: nowrap!important; flex-direction:row!important;
+    display:flex!important; align-items:center!important;
+    gap:10px!important; max-width:720px; margin:0 auto;
+    position:fixed; bottom:0; left:0; right:0;
+    background:white!important; padding:10px 12px!important;
+    border-top:1px solid #e4e6eb!important; z-index:999;
 }
-div[data-testid="stHorizontalBlock"] div[data-testid="column"] {
-    flex-shrink:0!important;
-    width:auto!important;
-    min-width:0!important;
+/* Icones bleues rondes comme ta capture */
+div[data-testid="stHorizontalBlock"] div[data-testid="column"]:nth-child(1) button,
+div[data-testid="stHorizontalBlock"] div[data-testid="column"]:nth-child(2) button,
+div[data-testid="stHorizontalBlock"] div[data-testid="column"]:nth-child(3) button,
+div[data-testid="stHorizontalBlock"] div[data-testid="column"]:nth-child(4) button {
+    background:#0a24a8!important; border:none!important;
+    border-radius:50%!important; width:36px!important; height:36px!important;
+    color:white!important; font-size:18px!important;
 }
-/* La barre de saisie prend tout l'espace au centre */
-div[data-testid="stHorizontalBlock"] div[data-testid="column"]:nth-child(3) {
-    flex-grow:1!important; flex-shrink:1!important; flex-basis:0!important;
+div[data-testid="stHorizontalBlock"] div[data-testid="column"]:nth-child(5) input {
+    background:#f0f2f5!important; border:none!important; border-radius:20px!important; height:38px!important;
 }
-div[data-testid="stTextInput"] {width:100%!important;}
-div[data-testid="stTextInput"] input {
-    background:#f0f2f5!important; border:none!important; border-radius:20px!important;
-    height:40px!important;
+div[data-testid="stHorizontalBlock"] div[data-testid="column"]:nth-child(6) button {
+    background:#0a24a8!important; border-radius:50%!important; width:36px!important; height:36px!important; color:white!important;
 }
-.stButton button {border-radius:50%!important; width:38px!important; height:38px!important; padding:0!important; border:1px solid #eee!important; background:white!important;}
-.stButton button[kind="primary"] {background:#111!important; color:white!important;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -71,12 +67,12 @@ def ask(q, classe, img=None):
     return r["choices"][0]["message"]["content"] if "choices" in r else "Erreur"
 
 cl = st.session_state.classe
-st.markdown(f"<div style='max-width:720px; margin:0 auto;'><b>🕊️ Angel • {cl}</b> <span style='color:#888; font-size:11px;'>• {len(st.session_state.chats[cl])}</span></div>", unsafe_allow_html=True)
+st.markdown(f"<div style='max-width:720px; margin:0 auto; padding:6px 0;'><b>🕊️ Angel • {cl}</b> <span style='color:#888; font-size:11px;'>• {len(st.session_state.chats[cl])}</span></div>", unsafe_allow_html=True)
 
-with st.expander("📚 Changer"):
-    cols=st.columns(4)
+with st.expander(f"📚 {cl}", expanded=False):
+    cs=st.columns(4)
     for i,c in enumerate(CLASSES):
-        with cols[i%4]:
+        with cs[i%4]:
             if st.button(c, key=f"c_{c}", use_container_width=True, type="primary" if c==cl else "secondary"):
                 st.session_state.classe=c; st.rerun()
 
@@ -104,25 +100,27 @@ if st.session_state.tool=="vocal":
 for m in st.session_state.chats[cl]:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
-st.markdown("<div style='height:80px;'></div>", unsafe_allow_html=True)
+st.markdown("<div style='height:90px;'></div>", unsafe_allow_html=True)
 
-# === MAINTENANT TOUT SUR UNE SEULE LIGNE HORIZONTALE ===
-c1,c2,c3,c4,c5 = st.columns([1,1,6,1,1])
+# ===== EXACTEMENT COMME TA CAPTURE =====
+# [ + ] [ 📷 ] [ 🖼️ ] [ 🎙️ ] [ Message ] [ ➤ ]
+b1,b2,b3,b4,b5,b6 = st.columns([0.7,0.7,0.7,0.7,4.5,0.7], gap="small")
 
-with c1:
-    if st.button("＋", key="p1"): st.session_state.tool = None if st.session_state.tool=="photo" else "photo"; st.rerun()
-with c2:
-    if st.button("🖼️", key="p2"): st.session_state.tool = None if st.session_state.tool=="photo" else "photo"; st.rerun()
-with c3:
-    q = st.text_input("q", placeholder=f"Message en {cl}...", label_visibility="collapsed", key="q_input")
-with c4:
-    if st.button("🎙️", key="p3"): st.session_state.tool = None if st.session_state.tool=="vocal" else "vocal"; st.rerun()
-with c5:
-    send = st.button("↑", key="send", type="primary")
+with b1:
+    if st.button("＋", key="plus_final"): st.session_state.tool = None if st.session_state.tool=="photo" else "photo"; st.rerun()
+with b2:
+    if st.button("◎", key="cam_final"): st.session_state.tool = None if st.session_state.tool=="photo" else "photo"; st.rerun()
+with b3:
+    if st.button("◫", key="gal_final"): st.session_state.tool = None if st.session_state.tool=="photo" else "photo"; st.rerun()
+with b4:
+    if st.button("🎙️", key="mic_final"): st.session_state.tool = None if st.session_state.tool=="vocal" else "vocal"; st.rerun()
+with b5:
+    q = st.text_input("msg", placeholder="Message", label_visibility="collapsed", key="msg_final")
+with b6:
+    send = st.button("➤", key="send_final")
 
 if q and q.strip() and q!= st.session_state.get("last_q",""):
-    if send or True: # entrée
-        st.session_state.last_q = q
-        st.session_state.chats[cl].append({"role":"user","content":q})
-        st.session_state.chats[cl].append({"role":"assistant","content":ask(q, cl)})
-        save(); st.rerun()
+    st.session_state.last_q = q
+    st.session_state.chats[cl].append({"role":"user","content":q})
+    st.session_state.chats[cl].append({"role":"assistant","content":ask(q, cl)})
+    save(); st.rerun()
