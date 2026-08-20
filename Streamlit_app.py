@@ -1,130 +1,143 @@
-import streamlit as st, requests, base64, json, os
+import streamlit as st, requests, base64, json, os, uuid
+from datetime import datetime
 
 st.set_page_config(page_title="Angel", page_icon="🕊️", layout="wide")
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Source+Serif+4:wght@400;500&display=swap');
 .stApp {background:#fcfaf8!important;}
-section[data-testid="stSidebar"] {background:#f5f2ed!important;}
-div[data-testid="stChatMessages"] {max-width:760px; margin:0 auto; gap:1.2rem!important;}
-.stChatMessage {background:transparent!important; border:none!important;}
-.stChatMessage p {font-family:'Source Serif 4', serif!important; font-size:15px!important; line-height:1.75!important;}
-.stChatMessage[data-testid="stChatMessage"]:has(div[data-testid="chatAvatarIcon-user"]) div[data-testid="stMarkdownContainer"]{background:#efe9dd!important; border-radius:18px!important; padding:12px 16px!important;}
-div[data-testid="stChatInput"] {max-width:760px; margin:0 auto; background:white!important; border:1px solid #e8e0d0!important; border-radius:24px!important;}
+section[data-testid="stSidebar"] {background:#f5f2ed!important; width:300px!important;}
+div[data-testid="stChatMessages"] {max-width:760px; margin:0 auto;}
+.stChatMessage p {font-size:15px!important; line-height:1.7!important;}
 </style>
 """, unsafe_allow_html=True)
 
-# --- TOUTES LES CLASSES DE 6e A DOCTORAT ---
-CLASSES = {
-    "Collège": ["6e", "5e", "4e", "3e"],
-    "Lycée": ["Seconde", "Première", "Terminale"],
-    "Licence": ["Licence 1", "Licence 2", "Licence 3"],
-    "Master & Doctorat": ["Master 1", "Master 2", "Doctorat"]
-}
-ALL_CLASSES = [c for v in CLASSES.values() for c in v]
+CLASSES = ["6e","5e","4e","3e","Seconde","Première","Terminale","Licence 1","Licence 2","Licence 3","Master 1","Master 2","Doctorat"]
 
-# --- MEMOIRE PERSISTANTE (reste même si tu quittes) ---
-FILE = "angel_memory.json"
-def load_memory():
+FILE = "angel_final.json"
+def load():
     if os.path.exists(FILE):
         try:
-            with open(FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+            with open(FILE,"r",encoding="utf-8") as f: return json.load(f)
         except: pass
-    return {c: [] for c in ALL_CLASSES}
+    return {"conversations": [], "active_id": None}
 
-def save_memory():
-    with open(FILE, "w", encoding="utf-8") as f:
-        json.dump(st.session_state.class_chats, f, ensure_ascii=False, indent=2)
+def save():
+    with open(FILE,"w",encoding="utf-8") as f: json.dump(st.session_state.data, f, ensure_ascii=False, indent=2)
 
-if "class_chats" not in st.session_state:
-    st.session_state.class_chats = load_memory()
-if "active_classe" not in st.session_state:
-    st.session_state.active_classe = "3e"
+if "data" not in st.session_state: st.session_state.data = load()
+if "active_classe" not in st.session_state: st.session_state.active_classe = "3e"
 
 KEY = st.secrets.get("GROQ_API_KEY","").strip()
 
-def call_text(q, classe):
-    sys = f"Tu es Angel, prof de {classe}. Programme strict {classe} uniquement. Si hors programme, refuse poliment. Français clair, aéré."
-    r = requests.post("https://api.groq.com/openai/v1/chat/completions",
-        headers={"Authorization": f"Bearer {KEY}"},
-        json={"model":"openai/gpt-oss-20b","messages":[{"role":"system","content":sys},{"role":"user","content":q}]}, timeout=30).json()
-    return r["choices"][0]["message"]["content"] if "choices" in r else f"Erreur {r}"
+def call_angel(q, classe, img=None):
+    if img:
+        b64 = base64.b64encode(img).decode()
+        r = requests.post("https://api.groq.com/openai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {KEY}"},
+            json={"model":"meta-llama/llama-4-scout-17b-16e-instruct","messages":[
+                {"role":"system","content":f"Tu es Angel, prof de {classe}"},
+                {"role":"user","content":[{"type":"text","text":q},{"type":"image_url","image_url":{"url":f"data:image/jpeg;base64,{b64}"}}]}
+            ]}, timeout=60).json()
+    else:
+        r = requests.post("https://api.groq.com/openai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {KEY}"},
+            json={"model":"openai/gpt-oss-20b","messages":[
+                {"role":"system","content":f"Tu es Angel, prof de {classe}. Programme strict {classe}."},
+                {"role":"user","content":q}]}, timeout=30).json()
+    return r["choices"][0]["message"]["content"] if "choices" in r else "Erreur"
 
-def call_vision(q, img_bytes, classe):
-    b64 = base64.b64encode(img_bytes).decode()
-    r = requests.post("https://api.groq.com/openai/v1/chat/completions",
-        headers={"Authorization": f"Bearer {KEY}"},
-        json={"model":"meta-llama/llama-4-scout-17b-16e-instruct","messages":[
-            {"role":"system","content":f"Tu es Angel, prof de {classe}. Analyse l'image."},
-            {"role":"user","content":[{"type":"text","text":q},{"type":"image_url","image_url":{"url":f"data:image/jpeg;base64,{b64}"}}]}
-        ]}, timeout=60).json()
-    return r["choices"][0]["message"]["content"] if "choices" in r else f"Erreur vision {r}"
+def new_conv(classe):
+    cid = str(uuid.uuid4())[:8]
+    conv = {"id":cid, "title":f"Nouvelle conversation - {classe}", "classe":classe, "messages":[], "date":datetime.now().strftime("%d/%m %H:%M")}
+    st.session_state.data["conversations"].insert(0, conv)
+    st.session_state.data["active_id"] = cid
+    save()
 
-def transcribe(audio_bytes):
-    try:
-        files = {"file": ("audio.wav", audio_bytes, "audio/wav")}; data = {"model":"whisper-large-v3","language":"fr"}
-        r = requests.post("https://api.groq.com/openai/v1/audio/transcriptions", headers={"Authorization": f"Bearer {KEY}"}, files=files, data=data, timeout=60).json()
-        return r.get("text","")
-    except: return ""
+def get_active():
+    aid = st.session_state.data["active_id"]
+    for c in st.session_state.data["conversations"]:
+        if c["id"] == aid: return c
+    return None
 
-# --- SIDEBAR ---
+# --- SIDEBAR COMME CHATGPT ---
 with st.sidebar:
     st.markdown("## 🕊️ Angel")
-    st.caption("Mémoire activée • Reste même si tu quittes")
 
-    for cycle, liste in CLASSES.items():
-        st.markdown(f"**{cycle}**")
-        cols = st.columns(2)
-        for i, c in enumerate(liste):
-            with cols[i % 2]:
-                active = st.session_state.active_classe == c
-                if st.button(f"{'🔵 ' if active else ''}{c}", key=f"btn_{c}", use_container_width=True, type="primary" if active else "secondary"):
-                    st.session_state.active_classe = c
-                    st.rerun()
+    if st.button("➕ Nouvelle conversation", use_container_width=True, type="primary"):
+        new_conv(st.session_state.active_classe)
+        st.rerun()
 
     st.markdown("---")
-    st.markdown("**📸 Photo**")
-    up = st.file_uploader("Importer", type=["jpg","jpeg","png"], label_visibility="collapsed", key="up")
-    cam = st.camera_input("Caméra", label_visibility="collapsed", key="cam")
+    st.markdown("**📚 Choisir la classe**")
+    sel = st.selectbox("Classe active", CLASSES, index=CLASSES.index(st.session_state.active_classe), label_visibility="collapsed")
+    st.session_state.active_classe = sel
+    st.caption(f"Salle: {sel}")
 
-    st.markdown("**🎙️ Vocal**")
-    aud = st.audio_input("Enregistrer", label_visibility="collapsed", key="aud")
+    st.markdown("---")
+    st.markdown("**🎙️📸 Outils**")
+    up = st.file_uploader("📸 Photo / Fichier", type=["jpg","png","jpeg","pdf"], label_visibility="collapsed")
+    cam = st.camera_input("Caméra", label_visibility="collapsed")
+    aud = st.audio_input("🎙️ Message vocal", label_visibility="collapsed")
 
-    if st.button("🗑️ Vider cette salle", use_container_width=True):
-        st.session_state.class_chats[st.session_state.active_classe] = []
-        save_memory(); st.rerun()
+    st.markdown("---")
+    st.markdown("**💬 Anciennes conversations**")
+    if not st.session_state.data["conversations"]:
+        st.caption("Aucune conversation")
+    else:
+        for conv in st.session_state.data["conversations"][:20]:
+            is_active = conv["id"] == st.session_state.data["active_id"]
+            label = f"{'🔵' if is_active else '⚪'} {conv['title'][:22]} | {conv['classe']} | {conv['date']}"
+            if st.button(label, key=f"conv_{conv['id']}", use_container_width=True, type="primary" if is_active else "secondary"):
+                st.session_state.data["active_id"] = conv["id"]
+                st.session_state.active_classe = conv["classe"]
+                st.rerun()
 
-# --- CHAT ---
-active = st.session_state.active_classe
-st.markdown(f"<div style='max-width:760px; margin:0 auto;'><span style='background:#1a1a1a; color:white; padding:6px 14px; border-radius:20px; font-size:13px;'>🕊️ Angel • Salle {active}</span> <span style='color:#888; font-size:12px;'> • {len(st.session_state.class_chats[active])} messages sauvegardés</span></div>", unsafe_allow_html=True)
+# --- MAIN ---
+active_conv = get_active()
 
-for m in st.session_state.class_chats[active]:
-    with st.chat_message(m["role"]):
-        st.markdown(m["content"])
+if not active_conv:
+    st.markdown(f"""
+    <div style='max-width:760px; margin:80px auto; text-align:center;'>
+        <h1>🕊️ Angel</h1>
+        <p>Bienvenue! Choisis une classe et clique sur <b>Nouvelle conversation</b></p>
+        <p>📚 {', '.join(CLASSES[:6])}... jusqu'à Doctorat</p>
+        <p>🎙️ Vocal • 📸 Photo • 💾 Mémoire automatique</p>
+    </div>
+    """, unsafe_allow_html=True)
+else:
+    st.markdown(f"#### 🕊️ {active_conv['title']} • Salle {active_conv['classe']} • {len(active_conv['messages'])} messages")
 
-# Traitement Photo
-img = cam or up
-if img and st.button(f"📸 Analyser avec Angel {active}"):
-    with st.spinner("Angel analyse..."):
-        ans = call_vision("Résous cet exercice étape par étape, niveau "+active, img.getvalue(), active)
-        st.session_state.class_chats[active].append({"role":"user","content":f"📸 [Photo en {active}]"})
-        st.session_state.class_chats[active].append({"role":"assistant","content":ans})
-        save_memory(); st.rerun()
+    for m in active_conv["messages"]:
+        with st.chat_message(m["role"]): st.markdown(m["content"])
 
-# Traitement Audio
-if aud:
-    txt = transcribe(aud.getvalue())
-    if txt and len(txt) > 2:
-        st.session_state.class_chats[active].append({"role":"user","content":f"🎙️ {txt}"})
-        ans = call_text(txt, active)
-        st.session_state.class_chats[active].append({"role":"assistant","content":ans})
-        save_memory(); st.rerun()
+    # Traitements
+    img_bytes = None
+    if cam: img_bytes = cam.getvalue()
+    elif up and hasattr(up,'getvalue'): img_bytes = up.getvalue()
 
-# Traitement Texte
-q = st.chat_input(f"Message à Angel en {active}...")
-if q:
-    st.session_state.class_chats[active].append({"role":"user","content":q})
-    ans = call_text(q, active)
-    st.session_state.class_chats[active].append({"role":"assistant","content":ans})
-    save_memory(); st.rerun()
+    if img_bytes and st.button(f"📸 Analyser avec Angel {active_conv['classe']}"):
+        ans = call_angel("Résous cet exercice étape par étape", active_conv["classe"], img_bytes)
+        active_conv["messages"].extend([{"role":"user","content":"📸 [Photo envoyée]"},{"role":"assistant","content":ans}])
+        if len(active_conv["messages"]) == 2: active_conv["title"] = f"Photo - {active_conv['classe']}"
+        save(); st.rerun()
+
+    if aud:
+        # transcription simple
+        files={"file":("a.wav", aud.getvalue(), "audio/wav")}; data={"model":"whisper-large-v3","language":"fr"}
+        try:
+            r=requests.post("https://api.groq.com/openai/v1/audio/transcriptions", headers={"Authorization": f"Bearer {KEY}"}, files=files, data=data, timeout=60).json()
+            txt = r.get("text","")
+            if txt:
+                active_conv["messages"].append({"role":"user","content":f"🎙️ {txt}"})
+                ans = call_angel(txt, active_conv["classe"])
+                active_conv["messages"].append({"role":"assistant","content":ans})
+                save(); st.rerun()
+        except: pass
+
+    q = st.chat_input(f"Écris à Angel en {active_conv['classe']}...")
+    if q:
+        active_conv["messages"].append({"role":"user","content":q})
+        if len(active_conv["messages"]) == 1: active_conv["title"] = q[:30]
+        ans = call_angel(q, active_conv["classe"])
+        active_conv["messages"].append({"role":"assistant","content":ans})
+        save(); st.rerun()
