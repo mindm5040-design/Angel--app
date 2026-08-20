@@ -4,17 +4,25 @@ st.set_page_config(page_title="Angel", page_icon="🕊️", layout="centered")
 st.markdown("""
 <style>
 .stApp {background:#ffffff!important;}
-div[data-testid="stChatMessages"] {max-width:720px; margin:0 auto; padding-bottom:20px!important; gap:4px!important;}
+div[data-testid="stChatMessages"] {max-width:720px; margin:0 auto; padding-bottom:110px!important; gap:4px!important;}
 .stChatMessage p {font-size:15.5px!important; line-height:1.7!important;}
-div[data-testid="stChatInput"] {
-    max-width:720px; margin:0 auto; background:#f5f5f5!important;
-    border:1px solid #e5e5e5!important; border-radius:24px!important;
-}
 div[data-testid="stChatMessage"]:has(div[data-testid="chatAvatarIcon-user"]) {
     justify-content:flex-end!important; max-width:75%!important; margin-left:auto!important;
 }
 div[data-testid="stChatMessage"]:has(div[data-testid="chatAvatarIcon-user"]) div[data-testid="stMarkdownContainer"]{
     background:#efe9dd!important; border-radius:18px 18px 4px 18px!important; padding:10px 14px!important;
+}
+
+/* BARRE DU BAS ELEGANTE */
+.bottom-bar {
+    position:fixed; bottom:0; left:0; right:0;
+    background:white; border-top:1px solid #e5e5e5;
+    padding:8px 12px; display:flex; align-items:center; gap:8px;
+    max-width:720px; margin:0 auto; z-index:100;
+}
+div[data-testid="stChatInput"] {
+    max-width:720px; margin:0 auto; background:#f0f2f5!important;
+    border-radius:20px!important; border:none!important; flex:1;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -33,7 +41,7 @@ def save():
 
 if "chats" not in st.session_state: st.session_state.chats = load()
 if "classe" not in st.session_state: st.session_state.classe = "Terminale"
-if "show_tools" not in st.session_state: st.session_state.show_tools = False
+if "tool" not in st.session_state: st.session_state.tool = None
 
 KEY = st.secrets.get("GROQ_API_KEY","").strip()
 
@@ -48,57 +56,60 @@ def ask(q, classe, img=None):
 
 cl = st.session_state.classe
 
-# --- HEADER SOIGNÉ ---
-st.markdown(f"<div style='max-width:720px; margin:0 auto; padding:8px 0;'><b>🕊️ Angel • {cl}</b> <span style='color:#888; font-size:12px;'>• {len(st.session_state.chats[cl])} messages</span></div>", unsafe_allow_html=True)
+# HEADER
+h1,h2 = st.columns([3,1])
+with h1: st.markdown(f"**🕊️ Angel • {cl}** <span style='color:#888; font-size:12px;'>• {len(st.session_state.chats[cl])}</span>", unsafe_allow_html=True)
+with h2:
+    new_cl = st.selectbox("classe", CLASSES, index=CLASSES.index(cl), label_visibility="collapsed")
+    if new_cl!=cl: st.session_state.classe=new_cl; st.rerun()
 
-# --- BARRE D'OUTILS COMPACTE (au lieu des gros blocs) ---
-t1, t2, t3, t4 = st.columns([2,1,1,1])
-with t1:
-    new_cl = st.selectbox("Classe", CLASSES, index=CLASSES.index(cl), label_visibility="collapsed")
-    if new_cl!= cl:
-        st.session_state.classe = new_cl; st.rerun()
-with t2:
-    if st.button("📷", use_container_width=True): st.session_state.show_tools = "photo" if st.session_state.show_tools!= "photo" else False; st.rerun()
-with t3:
-    if st.button("🎙️", use_container_width=True): st.session_state.show_tools = "vocal" if st.session_state.show_tools!= "vocal" else False; st.rerun()
-with t4:
-    if st.button("🗑️", use_container_width=True):
-        st.session_state.chats[cl]=[]; save(); st.rerun()
+# TOOL PANELS (s'ouvrent au dessus de la barre)
+if st.session_state.tool == "photo":
+    with st.container(border=True):
+        up = st.file_uploader("Photo", type=["jpg","png"], label_visibility="collapsed")
+        cam = st.camera_input("Caméra", label_visibility="collapsed")
+        c1,c2 = st.columns(2)
+        if c1.button("Fermer", use_container_width=True): st.session_state.tool=None; st.rerun()
+        img_data = (cam.getvalue() if cam else None) or (up.getvalue() if up and hasattr(up,'getvalue') else None)
+        if c2.button("Analyser", use_container_width=True, type="primary", disabled=not img_data):
+            ans = ask(f"Résous niveau {cl}", cl, img_data)
+            st.session_state.chats[cl].extend([{"role":"user","content":"📷 Photo"},{"role":"assistant","content":ans}])
+            st.session_state.tool=None; save(); st.rerun()
 
-# --- LES GROS BLOCS S'AFFICHENT UNIQUEMENT SI ON CLIQUE ---
-img_data = None
-if st.session_state.show_tools == "photo":
-    st.markdown("<div style='background:#fafafa; border:1px solid #eee; border-radius:12px; padding:12px;'>", unsafe_allow_html=True)
-    up = st.file_uploader("Importer une photo", type=["jpg","png"], label_visibility="collapsed")
-    cam = st.camera_input("Prendre", label_visibility="collapsed")
-    st.markdown("</div>", unsafe_allow_html=True)
-    if cam: img_data = cam.getvalue()
-    elif up and hasattr(up,'getvalue'): img_data = up.getvalue()
-    if img_data and st.button(f"Analyser en {cl}", use_container_width=True, type="primary"):
-        ans = ask(f"Résous niveau {cl}", cl, img_data)
-        st.session_state.chats[cl].extend([{"role":"user","content":"📷 Photo"},{"role":"assistant","content":ans}])
-        st.session_state.show_tools = False; save(); st.rerun()
+if st.session_state.tool == "vocal":
+    with st.container(border=True):
+        aud = st.audio_input("Vocal", label_visibility="collapsed")
+        if st.button("Fermer", use_container_width=True): st.session_state.tool=None; st.rerun()
+        if aud:
+            try:
+                files={"file":("a.wav", aud.getvalue(), "audio/wav")}; data={"model":"whisper-large-v3","language":"fr"}
+                txt=requests.post("https://api.groq.com/openai/v1/audio/transcriptions", headers={"Authorization": f"Bearer {KEY}"}, files=files, data=data, timeout=60).json().get("text","")
+                if txt:
+                    st.session_state.chats[cl].append({"role":"user","content":txt})
+                    st.session_state.chats[cl].append({"role":"assistant","content":ask(txt, cl)})
+                    st.session_state.tool=None; save(); st.rerun()
+            except: pass
 
-if st.session_state.show_tools == "vocal":
-    st.markdown("<div style='background:#fafafa; border:1px solid #eee; border-radius:12px; padding:12px;'>", unsafe_allow_html=True)
-    aud = st.audio_input("Vocal", label_visibility="collapsed")
-    st.markdown("</div>", unsafe_allow_html=True)
-    if aud:
-        try:
-            files={"file":("a.wav", aud.getvalue(), "audio/wav")}; data={"model":"whisper-large-v3","language":"fr"}
-            txt=requests.post("https://api.groq.com/openai/v1/audio/transcriptions", headers={"Authorization": f"Bearer {KEY}"}, files=files, data=data, timeout=60).json().get("text","")
-            if txt:
-                st.session_state.chats[cl].append({"role":"user","content":txt})
-                st.session_state.chats[cl].append({"role":"assistant","content":ask(txt, cl)})
-                st.session_state.show_tools = False; save(); st.rerun()
-        except: pass
-
-# --- CHAT ---
+# CHAT
 for m in st.session_state.chats[cl]:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
-q = st.chat_input(f"Écris à Angel en {cl}...")
-if q:
+# --- BARRE DU BAS AVEC ICONES A COTE ---
+# On crée la rangée élégante
+b1,b2,b3,b4 = st.columns([0.8,0.8,6,0.8])
+with b1:
+    if st.button("📷", use_container_width=True):
+        st.session_state.tool = None if st.session_state.tool=="photo" else "photo"; st.rerun()
+with b2:
+    if st.button("🎙️", use_container_width=True):
+        st.session_state.tool = None if st.session_state.tool=="vocal" else "vocal"; st.rerun()
+with b3:
+    q = st.text_input("Message", placeholder=f"Écris à Angel en {cl}...", label_visibility="collapsed", key="input_text")
+with b4:
+    send = st.button("➤", use_container_width=True, type="primary")
+
+if (send or q) and q and q.strip()!="":
+    # envoie
     st.session_state.chats[cl].append({"role":"user","content":q})
     st.session_state.chats[cl].append({"role":"assistant","content":ask(q, cl)})
     save(); st.rerun()
