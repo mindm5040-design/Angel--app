@@ -1,132 +1,132 @@
 import streamlit as st
-import requests, base64, os, re, json, uuid
+import requests
+import base64
+import os
+import re
 from pathlib import Path
-from datetime import datetime
 import streamlit.components.v1 as components
 
-st.set_page_config(page_title="Angel AI", page_icon="🧠", layout="wide")
-KEY = st.secrets.get("GROQ_API_KEY", os.getenv("GROQ_API_KEY",""))
+st.set_page_config(page_title="Angel AI — by Lelouch", page_icon="✦", layout="wide")
+
+# --- MOTEUR AUDIO + TTS ---
+components.html("""
+<script>
+const pDoc=window.parent.document; const pWin=window.parent;
+if(!pWin.angelAudioCtx){
+ pWin.angelAudioCtx=null;
+ pWin.getAngelCtx=function(){ if(!pWin.angelAudioCtx){pWin.angelAudioCtx=new(pWin.AudioContext||pWin.webkitAudioContext)();} return pWin.angelAudioCtx;}
+ pWin.playPop=function(){ try{const ctx=pWin.getAngelCtx();const o=ctx.createOscillator();const g=ctx.createGain();o.frequency.value=800;o.connect(g);g.connect(ctx.destination);g.gain.setValueAtTime(0.8,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.01,ctx.currentTime+0.2);o.start();o.stop(ctx.currentTime+0.2);}catch(e){}}
+ pWin.playDing=function(){ try{const ctx=pWin.getAngelCtx();const o=ctx.createOscillator();const g=ctx.createGain();o.frequency.value=1200;o.connect(g);g.connect(ctx.destination);g.gain.setValueAtTime(0.6,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.01,ctx.currentTime+0.5);o.start();o.stop(ctx.currentTime+0.5);}catch(e){}}
+ pWin.angelSpeak=function(id){ try{pWin.speechSynthesis.cancel();const el=pDoc.getElementById(id);if(!el)return;let txt=el.innerText.replace(/\\$\\$/g,' ').replace(/\\$/g,' ');if(txt.length>800)txt=txt.substring(0,800);const u=new SpeechSynthesisUtterance(txt);u.lang='fr-FR';u.rate=0.95;pWin.speechSynthesis.speak(u);}catch(e){}}
+ pWin.angelStop=function(){try{pWin.speechSynthesis.cancel();}catch(e){}}
+ pDoc.addEventListener('click',function(e){const b=e.target.closest('button[data-testid="stChatInputSubmitButton"]');if(b)pWin.playPop();},true);
+}
+</script>
+""", height=0)
+
+def get_groq_key():
+    try:
+        if "GROQ_API_KEY" in st.secrets: return st.secrets["GROQ_API_KEY"]
+    except: pass
+    return os.getenv("GROQ_API_KEY","")
+KEY=get_groq_key()
+
+def fix_latex(text):
+    if not text: return text
+    text=text.replace("$$\\LaTeX$$","").replace("$$LaTeX$$","").replace("$\\LaTeX$","")
+    text=re.sub(r'\\\[(.*?)\\\]', r'$$\1$$', text, flags=re.DOTALL)
+    text=re.sub(r'\\\((.*?)\\\)', r'$\1$', text, flags=re.DOTALL)
+    return text
+
+# --- STYLE PRO CLAUDE + ORIGINAL ---
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=DM+Sans:wght@400;600&family=Instrument+Serif&display=swap');
+.stApp {background:#FCFCF9!important; font-family:'DM Sans', sans-serif!important;}
+header, footer, #MainMenu,.stDeployButton {visibility:hidden!important;}
+[data-testid="stSidebar"] {background:#F5F3EF!important; border-right:1px solid #E8E3DC!important;}
+.brain-container {display:flex; flex-direction:column; align-items:center; margin:20px 0 6px;}
+.brain-video {width:140px; height:140px; border-radius:50%; object-fit:cover; box-shadow:0 0 40px rgba(224,122,79,0.25); border:2px solid #E07A4F;}
+.angel-title {font-family:'Space Grotesk'; font-size:44px; font-weight:700; letter-spacing:-2px; text-align:center; margin-top:14px;}
+.neural {color:#E07A4F; font-size:10px; letter-spacing:3px; font-weight:700; text-align:center; margin-top:6px;}
+div[data-testid="stButton"] > button {background: rgba(255,255,255,0.75)!important; backdrop-filter: blur(20px)!important; border:1px solid rgba(0,0,0,0.06)!important; border-radius:18px!important; height:58px!important; font-family:'Space Grotesk'!important; font-weight:600!important; color:#0a0a0a!important;}
+button[kind="primary"] {background:#0a0a0a!important; color:white!important; border-radius:12px!important;}
+</style>
+""", unsafe_allow_html=True)
+
+def get_video_html():
+    for p in [Path("brain.mp4"), Path("app/brain.mp4"), Path(__file__).parent / "brain.mp4"]:
+        if p.exists():
+            b64=base64.b64encode(p.read_bytes()).decode()
+            return f'<video class="brain-video" autoplay loop muted playsinline><source src="data:video/mp4;base64,{b64}" type="video/mp4"></video>'
+    return '<div style="font-size:90px;">🧠</div>'
+
+st.markdown(f"""
+<div class="brain-container">
+  {get_video_html()}
+  <div class="angel-title">Angel AI</div>
+  <div class="neural">NEURAL ENGINE • ACTIVE</div>
+</div>
+""", unsafe_allow_html=True)
+
 if not KEY:
-    st.error("Ajoute GROQ_API_KEY dans Secrets")
-    st.stop()
+    st.warning("⚠️ Mets ta clé dans Settings → Secrets"); st.stop()
 
-def fix(t):
-    if not t:
-        return ""
-    return re.sub(r'\\\[(.*?)\\\]', r'$$\1$$', t, flags=re.DOTALL)
+if "messages" not in st.session_state: st.session_state.messages=[]
+if "classe" not in st.session_state: st.session_state.classe="Premiere"
 
-def get_video():
-    p = Path("brain.mp4")
-    if p.exists():
-        try:
-            b64 = base64.b64encode(p.read_bytes()).decode()
-            return '<video style="width:100px;height:100px;border-radius:50%;border:2px solid #E07A4F" autoplay loop muted playsinline><source src="data:video/mp4;base64,' + b64 + '" type="video/mp4"></video>'
-        except:
-            pass
-    return '<div style="font-size:50px">🧠</div>'
-
-MEM_FILE = Path("angel_memory.json")
-CONV_FILE = Path("angel_conversations.json")
-
-def load_json(p, default):
-    if p.exists():
-        try:
-            return json.loads(p.read_text(encoding="utf-8"))
-        except:
-            return default
-    return default
-
-def save_json(p, data):
+def ask_groq(q, img=None):
     try:
-        p.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    except:
-        pass
-
-if "memory" not in st.session_state:
-    st.session_state.memory = load_json(MEM_FILE, {"prenom":"", "niveau":"Premiere"})
-if "conversations" not in st.session_state:
-    st.session_state.conversations = load_json(CONV_FILE, [])
-if "current_id" not in st.session_state:
-    st.session_state.current_id = str(uuid.uuid4())
-    st.session_state.messages = []
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "classe" not in st.session_state:
-    st.session_state.classe = st.session_state.memory.get("niveau","Premiere")
-if "mode" not in st.session_state:
-    st.session_state.mode = "chat"
-if "lang" not in st.session_state:
-    st.session_state.lang = "Anglais"
-if "in_call" not in st.session_state:
-    st.session_state.in_call = False
-
-LANG = {"Anglais":"en-US", "Espagnol":"es-ES", "Allemand":"de-DE"}
-
-def ask(q, img=None, vocal=False):
-    mem = st.session_state.memory
-    # Si prenom vide, on le detecte auto dans le chat
-    low = q.lower()
-    if not mem.get("prenom") and any(x in low for x in ["appelle","je suis","moi c'est","m'appelle"]):
-        m = re.search(r"(?:appelle|suis|c'est)\s+([A-Za-zÀ-ÿ]{2,20})", q, re.I)
-        if m:
-            mem["prenom"] = m.group(1).capitalize()
-            save_json(MEM_FILE, mem)
-
-    base = "Tu es Angel prof %s. Prenom %s. Reponse claire, lisible." % (st.session_state.classe, mem.get("prenom","élève"))
-    if vocal:
-        base = "You teach %s. %s Short answer 2-3 sentences." % (st.session_state.lang, base)
-    url = "https://api.groq.com/openai/v1/chat/completions"
-    h = {"Authorization": "Bearer " + KEY, "Content-Type":"application/json"}
-    try:
+        system_prompt=f"Tu es Angel, prof bienveillant niveau {st.session_state.classe}. Tu expliques clair étape par étape. Maths: $x^2$ et $$\\frac{{a}}{{b}}$$. Ne dis jamais le mot LaTeX."
+        url="https://api.groq.com/openai/v1/chat/completions"
+        headers={"Authorization":"Bearer "+KEY}
         if img:
-            b64 = base64.b64encode(img).decode()
-            pl = {"model":"meta-llama/llama-4-scout-17b-16e-instruct","messages":[{"role":"user","content":[{"type":"text","text":base+q},{"type":"image_url","image_url":{"url":"data:image/jpeg;base64,"+b64}}]}], "max_tokens":1000}
+            b64=base64.b64encode(img).decode()
+            payload={"model":"meta-llama/llama-4-scout-17b-16e-instruct","messages":[{"role":"user","content":[{"type":"text","text":system_prompt+"\n\nQuestion: "+q},{"type":"image_url","image_url":{"url":"data:image/jpeg;base64,"+b64}}]}]}
         else:
-            hist = [{"role":x["role"],"content":x["content"][:400]} for x in st.session_state.messages[-6:]]
-            pl = {"model":"openai/gpt-oss-20b","messages":[{"role":"system","content":base}]+hist+[{"role":"user","content":q}], "max_tokens":1000}
-        r = requests.post(url, headers=h, json=pl, timeout=90)
-        data = r.json()
-        if "choices" not in data:
-            return f"Erreur API Groq: {data.get('error',{}).get('message', str(data)[:300])}"
-        return fix(data["choices"][0]["message"]["content"])
+            payload={"model":"openai/gpt-oss-20b","messages":[{"role":"system","content":system_prompt},{"role":"user","content":q}]}
+        r=requests.post(url,headers=headers,json=payload,timeout=60).json()
+        return fix_latex(r["choices"][0]["message"]["content"])
     except Exception as e:
-        return "Erreur reseau: %s" % e
+        return f"Erreur: {e}"
 
-def save_current():
-    if not st.session_state.messages:
-        return
-    first = [m for m in st.session_state.messages if m["role"]=="user"]
-    title = first[0]["content"][:35] + "..." if first else "Nouvelle conversation"
-    conv = {"id":st.session_state.current_id, "title":title, "messages":st.session_state.messages, "date":datetime.now().strftime("%d/%m %H:%M"), "classe":st.session_state.classe}
-    st.session_state.conversations = [c for c in st.session_state.conversations if c["id"]!=st.session_state.current_id]
-    st.session_state.conversations.insert(0, conv)
-    save_json(CONV_FILE, st.session_state.conversations[:50])
-    save_json(MEM_FILE, st.session_state.memory)
+# --- SELECTEUR CLASSE ORIGINAL ---
+with st.expander(f"📚 Niveau: {st.session_state.classe}", expanded=False):
+    for label, items in [("COLLEGE",["6e","5e","4e","3e"]),("LYCEE",["Seconde","Premiere","Terminale"]),("UNIVERSITE",["Licence 1","Licence 2","Licence 3","Master 1","Master 2","Doctorat"])]:
+        st.markdown(f'<div style="font-size:10px; letter-spacing:2px; color:#999; font-weight:700; margin:10px 0 6px;">{label}</div>', unsafe_allow_html=True)
+        cols=st.columns(3)
+        for i,c in enumerate(items):
+            with cols[i%3]:
+                if st.button(c, key=f"cl_{c}", use_container_width=True, type="primary" if c==st.session_state.classe else "secondary"):
+                    st.session_state.classe=c; st.rerun()
 
-st.markdown("<style>.stApp{background:#FCFCF9!important}header,footer,#MainMenu{display:none}[data-testid='stSidebar']{background:#F5F3EF!important}.brain-wrap{width:100px;height:100px;margin:0 auto;border-radius:50%;overflow:hidden;border:2px solid #E07A4F;animation:pulse 2.5s infinite}.brain-wrap video{width:100%;height:100%;object-fit:cover}@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}</style>", unsafe_allow_html=True)
+# --- MESSAGES + SONS + TTS ---
+for i,m in enumerate(st.session_state.messages):
+    with st.chat_message(m["role"]):
+        st.markdown(f'<div id="msg-{i}">{fix_latex(m["content"])}</div>', unsafe_allow_html=True)
+        if m["role"]=="assistant":
+            components.html("<script>try{window.parent.playDing();}catch(e){}</script>", height=0)
+            components.html(f"""
+            <div style="margin-top:8px">
+              <button onclick="window.parent.angelSpeak('msg-{i}')" style="background:#0a0a0a;color:white;border:none;border-radius:20px;padding:7px 14px;font-size:12px;cursor:pointer">🔊 Lire vocalement</button>
+              <button onclick="window.parent.angelStop()" style="background:#eee;color:#000;border:none;border-radius:20px;padding:7px 10px;font-size:12px;margin-left:6px;cursor:pointer">⏹️</button>
+            </div>
+            """, height=45)
 
-with st.sidebar:
-    st.markdown("<div style='text-align:center;padding:10px 0'>" + get_video() + "<div style='font-weight:700'>Angel AI</div><div style='color:#E07A4F;font-size:10px;font-weight:700'>NEURAL ENGINE</div></div>", unsafe_allow_html=True)
-    if st.button("✦ Nouvelle conversation", use_container_width=True, type="primary"):
-        save_current()
-        st.session_state.current_id = str(uuid.uuid4())
-        st.session_state.messages = []
+# --- IMPORT PHOTO ORIGINAL RESTAURE ---
+with st.expander("📸 Photo devoir + Caméra", expanded=False):
+    up=st.file_uploader("Importer une photo", type=["jpg","png","jpeg"], label_visibility="visible")
+    cam=st.camera_input("Prendre une photo", label_visibility="visible")
+    img_bytes=cam.getvalue() if cam else (up.getvalue() if up else None)
+    if img_bytes and st.button("🔍 Analyser le devoir", type="primary", use_container_width=True):
+        rep=ask_groq("Explique cet exercice étape par étape avec détails", img_bytes)
+        st.session_state.messages+=[{"role":"user","content":"📸 Photo du devoir"},{"role":"assistant","content":rep}]
         st.rerun()
-    st.markdown("ANCIENNES CONVERSATIONS")
-    for conv in st.session_state.conversations[:12]:
-        is_active = conv["id"] == st.session_state.current_id
-        label = ("● " if is_active else "") + conv["title"][:28]
-        if st.button(label, key="conv_" + conv["id"], use_container_width=True, type="primary" if is_active else "secondary"):
-            save_current()
-            st.session_state.current_id = conv["id"]
-            st.session_state.messages = conv["messages"]
-            st.rerun()
-    st.markdown("---")
-    st.session_state.memory["prenom"] = st.text_input("Prenom (ou tape 'je m'appelle...' dans le chat)", value=st.session_state.memory.get("prenom",""))
-    m = st.radio("", ["💬 Chat", "📞 Appel Gratuit"], label_visibility="collapsed")
-    st.session_state.mode = "vocal" if "Appel" in m else "chat"
-    if st.session_state.mode == "vocal":
-        st.session_state.lang = st.selectbox("Langue", list(LANG.keys()))
-    st.markdown("Niveau")
-    for c in ["6e","5e","4e","3e","Seconde","Premiere","Terminale","Licence 1","Master 1","Doctorat"]:
-        if st.button(c, key="cl_" + c, use_container_width=True, type="primary" if c==st
+
+# --- CHAT INPUT ---
+prompt=st.chat_input(f"Question niveau {st.session_state.classe}... (ex: explique pythagore)")
+if prompt:
+    st.session_state.messages.append({"role":"user","content":prompt})
+    rep=ask_groq(prompt)
+    st.session_state.messages.append({"role":"assistant","content":rep})
+    st.rerun()
