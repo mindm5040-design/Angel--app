@@ -1,60 +1,13 @@
 import streamlit as st
-import requests, base64
+import requests, base64, streamlit.components.v1 as components
 
-st.set_page_config(page_title="Angel AI", page_icon="🕊️", layout="centered")
+st.set_page_config(page_title="Angel AI v4.0", page_icon="🕊️", layout="centered")
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap');
-.stApp {background: radial-gradient(1200px at 20% -10%, #dbe4ff 0%, #f8f9ff 50%, #ffffff 100%)!important; font-family:'Outfit', sans-serif;}
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Outfit:wght@600;800&display=swap');
+.stApp {background:#020617!important;}
 header, footer {visibility:hidden!important;}
-
-/* TITRE ANIME */
-.title-ai {
-  text-align:center; font-size:32px; font-weight:800;
-  background: linear-gradient(90deg, #0a27a6, #5b7fff, #0a27a6);
-  background-size:200% auto; -webkit-background-clip:text; -webkit-text-fill-color:transparent;
-  animation: shine 3s linear infinite; margin-top:10px;
-}
-@keyframes shine {to {background-position:200% center;}}
-.subtitle {text-align:center; color:#6b7280; font-size:14px; margin-bottom:20px; animation: fadeIn 0.8s ease;}
-
-/* CATEGORIES */
-.cat {font-size:11px; font-weight:800; letter-spacing:2px; color:#0a27a6; opacity:0.6; margin:22px 0 10px 4px; animation: slideUp 0.5s ease;}
-
-/* BOUTONS CLASSES - EFFET IA */
-div[data-testid="stButton"] > button {
-  border-radius:16px!important; height:56px!important; font-weight:700!important; font-size:15px!important;
-  background: rgba(255,255,255,0.8)!important; backdrop-filter: blur(12px)!important;
-  border:1px solid rgba(10,39,166,0.12)!important; color:#0a27a6!important;
-  box-shadow: 0 2px 8px rgba(10,39,166,0.06)!important;
-  transition: all 0.25s cubic-bezier(0.4,0,0.2,1)!important;
-  animation: slideUp 0.6s ease backwards;
-}
-div[data-testid="stButton"] > button:hover {
-  transform: translateY(-3px) scale(1.02)!important;
-  background: white!important; border-color:#0a27a6!important;
-  box-shadow: 0 12px 24px rgba(10,39,166,0.18)!important;
-}
-div[data-testid="stButton"] > button[kind="primary"] {
-  background: linear-gradient(135deg, #0a27a6 0%, #3a5bff 100%)!important;
-  color:white!important; border:none!important;
-  box-shadow: 0 8px 20px rgba(10,39,166,0.35)!important;
-}
-div[data-testid="stButton"] > button:active {transform: scale(0.97)!important;}
-
-@keyframes slideUp {from {opacity:0; transform:translateY(12px);} to {opacity:1; transform:translateY(0);}}
-@keyframes fadeIn {from {opacity:0;} to {opacity:1;}}
-
-@keyframes pulse {
-  0% {box-shadow:0 0 0 0 rgba(10,39,166,0.4);}
-  70% {box-shadow:0 0 0 12px rgba(10,39,166,0);}
-  100% {box-shadow:0 0 0 0 rgba(10,39,166,0);}
-}
-.active-class {animation: pulse 2s infinite;}
-
-/* CHAT BUBBLES PRO */
-[data-testid="stChatMessage"] {animation: slideUp 0.3s ease;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -62,72 +15,107 @@ KEY = st.secrets.get("GROQ_API_KEY","")
 if "classe" not in st.session_state: st.session_state.classe=None
 if "messages" not in st.session_state: st.session_state.messages=[]
 
-def ask(q, img=None):
-    if img:
-        b64=base64.b64encode(img).decode()
-        body={"model":"meta-llama/llama-4-scout-17b-16e-instruct","messages":[{"role":"user","content":[{"type":"text","text":q},{"type":"image_url","image_url":{"url":f"data:image/jpeg;base64,{b64}"}}]}]}
-    else:
-        body={"model":"openai/gpt-oss-20b","messages":[{"role":"system","content":f"Tu es Angel IA, prof niveau {st.session_state.classe}, design pro"},{"role":"user","content":q}]}
-    r=requests.post("https://api.groq.com/openai/v1/chat/completions",headers={"Authorization":f"Bearer {KEY}"},json=body,timeout=60).json()
-    return r["choices"][0]["message"]["content"]
+# --- ANIMATION HOLOGRAMME CARTE CAMEROUN ---
+HOLO_HTML = """
+<div id="holo">
+<style>
+#holo {position:relative; width:100%; height:420px; background: radial-gradient(ellipse at center, #0a2540 0%, #020617 70%); border:1px solid #0ff3; border-radius:20px; overflow:hidden; font-family:'JetBrains Mono', monospace;}
+.scanline {position:absolute; width:100%; height:2px; background:linear-gradient(90deg, transparent, #00e5ff, transparent); animation: scan 3s linear infinite; z-index:10;}
+@keyframes scan {0%{top:0} 100%{top:100%}}
 
-# ECRAN SELECTION
+.map-wrap {position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:300px; height:420px;}
+.map-svg {width:100%; height:100%; filter: drop-shadow(0 0 15px #00e5ff) drop-shadow(0 0 30px #00e5ff66);}
+.map-path {fill:none; stroke:#00e5ff; stroke-width:1.2; stroke-dasharray:1000; stroke-dashoffset:1000; animation: draw 2.5s ease forwards, glow 2s ease-in-out infinite alternate; opacity:0.9;}
+@keyframes draw {to {stroke-dashoffset:0;}}
+@keyframes glow {0%{stroke-width:1.2; filter:brightness(1);} 100%{stroke-width:1.8; filter:brightness(1.4);}}
+
+.node {position:absolute; width:10px; height:10px; background:#00e5ff; border-radius:50%; box-shadow:0 0 10px #00e5ff, 0 0 20px #00e5ff; animation: pulse 1.5s infinite;}
+.node::after {content:''; position:absolute; width:24px; height:24px; border:1px solid #00e5ff; border-radius:50%; left:-7px; top:-7px; animation: ripple 2s infinite;}
+@keyframes pulse {0%,100%{transform:scale(1);} 50%{transform:scale(1.3);}}
+@keyframes ripple {0%{transform:scale(0.5); opacity:1;} 100%{transform:scale(2); opacity:0;}}
+
+.label {position:absolute; color:#7dd3fc; font-size:10px; font-weight:700; text-shadow:0 0 8px #00e5ff; letter-spacing:1px; animation: flicker 3s infinite;}
+@keyframes flicker {0%,100%{opacity:1;} 50%{opacity:0.7;}}
+
+.grid {position:absolute; bottom:0; width:100%; height:80px; background: repeating-linear-gradient(90deg, #00e5ff11 0 1px, transparent 1px 40px), radial-gradient(ellipse at center, #00e5ff22 0%, transparent 70%); animation: gridMove 4s linear infinite;}
+@keyframes gridMove {0%{transform:perspective(200px) rotateX(60deg) translateY(0);} 100%{transform:perspective(200px) rotateX(60deg) translateY(40px);}}
+
+.title {position:absolute; top:14px; left:16px; color:#00e5ff; font-size:13px; font-weight:800; letter-spacing:2px; text-shadow:0 0 10px #00e5ff;}
+</style>
+<div class="scanline"></div>
+<div class="title">IA CAMEROUN v4.0 • ANGEL AI • SYSTEM ONLINE</div>
+
+<div class="map-wrap">
+<svg class="map-svg" viewBox="0 0 100 140" xmlns="http://www.w3.org/2000/svg">
+<!-- Forme simplifiée Cameroun -->
+<path class="map-path" d="M 35 2 L 55 5 L 62 18 L 68 22 L 72 35 L 70 48 L 65 58 L 68 70 L 70 85 L 68 100 L 65 115 L 60 125 L 45 128 L 30 124 L 25 110 L 20 95 L 18 80 L 15 65 L 18 50 L 22 35 L 28 15 Z" />
+</svg>
+<div class="node" style="left:48%; top:82%;"></div>
+<div class="label" style="left:48%; top:90%;">YAOUNDÉ • HUB</div>
+
+<div class="node" style="left:22%; top:68%;"></div>
+<div class="label" style="left:2%; top:68%;">DOUALA</div>
+
+<div class="node" style="left:28%; top:42%;"></div>
+<div class="label" style="left:2%; top:38%;">BAMENDA</div>
+</div>
+
+<div class="grid"></div>
+</div>
+"""
+
 if st.session_state.classe is None:
-    st.markdown("<div class='title-ai'>🕊️ Angel AI</div>", unsafe_allow_html=True)
-    st.markdown("<div class='subtitle'>Intelligence qui t'explique • Choisis ton niveau</div>", unsafe_allow_html=True)
+    components.html(HOLO_HTML, height=440)
 
-    st.markdown("<div class='cat'>COLLÈGE</div>", unsafe_allow_html=True)
-    c1,c2,c3,c4 = st.columns(4)
+    st.markdown("""
+    <div style='text-align:center; margin-top:16px;'>
+    <div style='font-family:Outfit; font-size:28px; font-weight:800; background:linear-gradient(90deg,#00e5ff,#a5f3fc,#00e5ff); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-size:200%; animation: shine 3s linear infinite;'>Choisis ton niveau pour activer le réseau</div>
+    <div style='color:#64748b; font-family:JetBrains Mono; font-size:11px; letter-spacing:2px; margin-top:6px;'>MODÈLE IA LOCAL • FR/EN/FULFULDE • SYNC 100%</div>
+    </div>
+    <style>@keyframes shine{to{background-position:200% center;}}</style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("<div style='color:#00e5ff; font-size:11px; font-weight:800; letter-spacing:2px; margin:20px 0 8px; font-family:JetBrains Mono;'>COLLÈGE • RÉSEAU NORD</div>", unsafe_allow_html=True)
+    c1,c2,c3,c4=st.columns(4)
     for i, cl in enumerate(["6e","5e","4e","3e"]):
         with [c1,c2,c3,c4][i]:
             if st.button(cl, key=cl, use_container_width=True):
                 st.session_state.classe=cl; st.rerun()
 
-    st.markdown("<div class='cat'>LYCÉE</div>", unsafe_allow_html=True)
-    c1,c2,c3 = st.columns(3)
+    st.markdown("<div style='color:#00e5ff; font-size:11px; font-weight:800; letter-spacing:2px; margin:16px 0 8px; font-family:JetBrains Mono;'>LYCÉE • RÉSEAU CENTRE</div>", unsafe_allow_html=True)
+    c1,c2,c3=st.columns(3)
     for i, cl in enumerate(["Seconde","Première","Terminale"]):
         with [c1,c2,c3][i]:
             if st.button(cl, key=cl, use_container_width=True):
                 st.session_state.classe=cl; st.rerun()
 
-    st.markdown("<div class='cat'>UNIVERSITÉ • LICENCE</div>", unsafe_allow_html=True)
-    c1,c2,c3 = st.columns(3)
+    st.markdown("<div style='color:#00e5ff; font-size:11px; font-weight:800; letter-spacing:2px; margin:16px 0 8px; font-family:JetBrains Mono;'>UNIVERSITÉ • RÉSEAU NATIONAL +47% RENDEMENT</div>", unsafe_allow_html=True)
+    c1,c2,c3=st.columns(3)
     for i, cl in enumerate(["Licence 1","Licence 2","Licence 3"]):
         with [c1,c2,c3][i]:
             if st.button(cl, key=cl, use_container_width=True):
                 st.session_state.classe=cl; st.rerun()
-
-    st.markdown("<div class='cat'>UNIVERSITÉ • MASTER & DOCTORAT</div>", unsafe_allow_html=True)
-    c1,c2,c3 = st.columns(3)
+    c1,c2,c3=st.columns(3)
     for i, cl in enumerate(["Master 1","Master 2","Doctorat"]):
         with [c1,c2,c3][i]:
-            if st.button(cl, key=cl, use_container_width=True, type="primary" if cl=="Doctorat" else "secondary"):
+            if st.button(f"🚀 {cl}", key=cl, use_container_width=True):
                 st.session_state.classe=cl; st.rerun()
-
     st.stop()
 
-# CHAT PRO
-st.markdown(f"<div style='display:flex; justify-content:space-between; align-items:center; padding:8px 0;'><div style='font-weight:800; color:#0a27a6;'>🕊️ Angel • {st.session_state.classe}</div><div style='font-size:12px; color:#6b7280;'>IA • En ligne</div></div>", unsafe_allow_html=True)
-
-if st.button("↩️ Changer de niveau", use_container_width=False):
-    st.session_state.classe=None; st.rerun()
+# CHAT APRES SELECTION
+st.markdown(f"<div style='color:#00e5ff; font-family:JetBrains Mono; font-size:12px;'>🕊️ ANGEL • {st.session_state.classe} • NEURAL ACTIVE • YAOUNDÉ</div>", unsafe_allow_html=True)
+if st.button("↩️ Retour carte"): st.session_state.classe=None; st.rerun()
 
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
         st.write(m["content"])
 
-with st.expander("📷 Photo + 📷 Caméra"):
-    up=st.file_uploader(" ", type=["jpg","png","jpeg"], label_visibility="collapsed")
-    cam=st.camera_input(" ", label_visibility="collapsed")
-    img = cam.getvalue() if cam else (up.getvalue() if up else None)
-    if img and st.button("✨ Analyser avec Angel IA", type="primary", use_container_width=True):
-        rep=ask("Explique", img)
-        st.session_state.messages+=[{"role":"user","content":"📷 Photo"},{"role":"assistant","content":rep}]
-        st.rerun()
-
-prompt = st.chat_input("Demande à Angel IA...")
+prompt=st.chat_input("Message à Angel IA...")
 if prompt:
+    def ask(q):
+        body={"model":"openai/gpt-oss-20b","messages":[{"role":"system","content":f"Tu es Angel IA v4.0 niveau {st.session_state.classe}"},{"role":"user","content":q}]}
+        r=requests.post("https://api.groq.com/openai/v1/chat/completions",headers={"Authorization":f"Bearer {KEY}"},json=body,timeout=60).json()
+        return r["choices"][0]["message"]["content"]
     st.session_state.messages.append({"role":"user","content":prompt})
-    rep=ask(prompt)
-    st.session_state.messages.append({"role":"assistant","content":rep})
+    st.session_state.messages.append({"role":"assistant","content":ask(prompt)})
     st.rerun()
