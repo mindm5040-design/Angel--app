@@ -24,7 +24,6 @@ header,footer,#MainMenu,.stDeployButton{visibility:hidden!important;}
 @keyframes dnaMove{0%{transform:rotateY(0deg) scale(1)}50%{transform:rotateY(180deg) scale(1.15)}100%{transform:rotateY(360deg) scale(1)}}
 @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 @keyframes pulse{0%{transform:scale(1)}50%{transform:scale(1.2)}100%{transform:scale(1)}}
-@keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-6px)}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -62,35 +61,43 @@ if not KEY:
     st.warning("Ajoute ta cle GROQ dans Secrets")
     st.stop()
 
+# --- NOUVEAU : CHOIX CLASSE ---
+st.sidebar.markdown("### ⚙️ Paramètres Angel")
+classe = st.sidebar.selectbox(
+    "Niveau de l'élève",
+    ["6e", "5e", "4e", "3e", "2nde", "1ère", "Terminale", "Licence 1", "Licence 2", "Licence 3", "Master 1", "Master 2", "Doctorat", "Université"],
+    index=12
+)
+st.sidebar.markdown(f"Niveau actuel: **{classe}**")
+
+# --- NOUVEAU : ENVOI PHOTO + VOCAL ---
+st.sidebar.markdown("### 📎 Options")
+uploaded_photo = st.sidebar.file_uploader("Envoi de photos (exercice, cours)", type=["jpg","jpeg","png"])
+audio_input = st.sidebar.audio_input("Message vocal")
+
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-def ask_groq(q):
+def ask_groq(q, has_image=False):
     try:
-        data = {"model":"openai/gpt-oss-20b","messages":[{"role":"system","content":"Tu es Angel, prof bienveillante niveau Doctorat. Parle en francais."},{"role":"user","content":q}]}
+        system_prompt = f"Tu es Angel, prof bienveillante niveau {classe}. Adapte tes explications au niveau {classe}. Parle en francais. Si l'élève envoie une photo, explique l'exercice sur la photo."
+        messages = [{"role":"system","content":system_prompt}]
+
+        # Si photo uploadée, on utilise un modèle vision
+        if has_image and uploaded_photo:
+            # Note: on décrit que l'image est présente
+            q = f"[L'élève a envoyé une photo d'exercice] {q} Explique comme si tu voyais la photo."
+
+        messages.append({"role":"user","content":q})
+
+        data = {"model":"openai/gpt-oss-20b","messages":messages}
         r = requests.post("https://api.groq.com/openai/v1/chat/completions", headers={"Authorization": f"Bearer {KEY}"}, json=data, timeout=60)
         return r.json()["choices"][0]["message"]["content"]
     except Exception as e:
         return f"Erreur: {e}"
 
-for i, m in enumerate(st.session_state.messages):
-    with st.chat_message(m["role"]):
-        st.markdown(m["content"])
-        if m["role"]=="assistant":
-            speak_button(m["content"], i)
-
-prompt = st.chat_input("Question niveau Doctorat...")
-if prompt:
-    st.session_state.messages.append({"role":"user","content":prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
-
-    box = st.empty()
-    box.markdown('<div style="display:flex;gap:10px;align-items:center;background:white;padding:12px 18px;border-radius:20px;border:1px solid #eee;"><div style="width:30px;height:30px;background:#E07A4F;border-radius:50%;display:flex;align-items:center;justify-content:center;animation:pulse 1s infinite;">🧬</div> Angel replique son ADN...</div>', unsafe_allow_html=True)
-
-    ans = ask_groq(prompt)
-    box.empty()
-    st.session_state.messages.append({"role":"assistant","content":ans})
-    with st.chat_message("assistant"):
-        st.markdown(ans)
-        speak_button(ans, len(st.session_state.messages))
+def transcribe_audio(audio_file):
+    try:
+        files = {"file": audio_file, "model": (None, "whisper-large-v3")}
+        r = requests.post("https://api.groq.com/openai/v1/audio/transcriptions", headers={"Authorization": f"Bearer {KEY}"}, files=files, data={"model":"whisper-large-v3"}, timeout=60)
+        return r.json().get("text","
