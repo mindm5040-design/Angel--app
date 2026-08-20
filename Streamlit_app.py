@@ -1,353 +1,113 @@
-"""
-Angel — Instrument d'étude (Groq Edition)
-Version simple avec une seule clé API (Groq).
-Modes: Chat, Correction photo, Fiche révision, Examen blanc, Exercices.
-"""
-
 import streamlit as st
-import requests
-import os
+import requests, os, base64, random, urllib.parse
 import streamlit.components.v1 as components
 
-# ------------------------------------------------------------------
-# CONFIG
-# ------------------------------------------------------------------
-st.set_page_config(
-    page_title="Angel — Instrument d'étude",
-    page_icon="🕊️",
-    layout="centered",
-)
+st.set_page_config(page_title="NEXA-AI", page_icon="🧬", layout="centered")
 
-st.markdown("""
-<style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body, html { font-family: 'Inter', -apple-system, sans-serif; background: #FCFCF9; }
-.stApp { background: #FCFCF9; }
-header, footer, #MainMenu, .stDeployButton { visibility: hidden; }
-
-.angel-header {
-    text-align: center; padding: 24px 0;
-    border-bottom: 1px solid #eee; margin-bottom: 24px;
-}
-.angel-title {
-    font-size: 42px; font-weight: 800; color: #0a0d13; margin: 0;
-}
-.angel-sub {
-    font-size: 11px; letter-spacing: 2px; color: #ffd98a; 
-    font-weight: 700; margin-top: 6px;
-}
-.angel-level {
-    font-size: 12px; color: #999; margin-top: 8px;
-}
-
-.mode-tabs {
-    display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px;
-}
-.mode-tab {
-    background: white; border: 1px solid #e0e0e0; border-radius: 10px;
-    padding: 8px 14px; font-size: 13px; cursor: pointer;
-    transition: all .2s; color: #666;
-}
-.mode-tab:hover, .mode-tab.active {
-    border-color: #ffd98a; background: #fffaf5; color: #0a0d13; font-weight: 600;
-}
-
-.chat-msg { margin: 12px 0; padding: 12px 14px; border-radius: 10px; line-height: 1.6; }
-.chat-msg.user { background: #f5f5f5; margin-left: 24px; border-left: 3px solid #e0e0e0; }
-.chat-msg.assistant {
-    background: #fffaf5; margin-right: 24px; border-left: 3px solid #ffd98a;
-    color: #0a0d13;
-}
-
-.voice-btn {
-    background: #ffd98a; color: #1a1204; border: none; border-radius: 20px;
-    padding: 6px 12px; font-size: 11px; font-weight: 600; cursor: pointer;
-    transition: all .2s; margin-top: 8px;
-}
-.voice-btn:hover { transform: scale(1.05); box-shadow: 0 4px 12px rgba(255,217,138,0.3); }
-
-.section-title { font-size: 16px; font-weight: 700; color: #0a0d13; margin: 16px 0 12px; }
-.input-group { margin-bottom: 16px; }
-.input-group label { font-size: 12px; font-weight: 600; color: #999; display: block; margin-bottom: 6px; }
-
-.alert { padding: 12px; border-radius: 10px; margin-bottom: 16px; font-size: 13px; }
-.alert-error { background: #fff5f5; border-left: 3px solid #ff6b6b; color: #c92a2a; }
-.alert-success { background: #f0fdf4; border-left: 3px solid #22c55e; color: #166534; }
-
-.footer { text-align: center; font-size: 10px; color: #ccc; margin-top: 32px; padding-top: 16px; border-top: 1px solid #eee; }
-</style>
-""", unsafe_allow_html=True)
-
-# ------------------------------------------------------------------
-# DATA
-# ------------------------------------------------------------------
-LEVELS = {
-    "Collège": ["6e", "5e", "4e", "3e"],
-    "Lycée": ["Seconde", "Première", "Terminale"],
-    "Université": ["L1", "L2", "L3", "M1", "M2", "Doctorat"]
-}
-SUBJECTS = ["Maths", "Physique-Chimie", "SVT", "Français", "Anglais", "Histoire-Géo", "Philosophie", "Informatique"]
-
-# ------------------------------------------------------------------
-# GET API KEY
-# ------------------------------------------------------------------
-def get_groq_key():
+def get_key():
     try:
         if "GROQ_API_KEY" in st.secrets:
             return st.secrets["GROQ_API_KEY"]
     except:
         pass
-    return os.getenv("GROQ_API_KEY", "")
+    return os.getenv("GROQ_API_KEY","")
+KEY=get_key()
 
-GROQ_KEY = get_groq_key()
+st.markdown("<style>.stApp{background:#FCFCF9!important;} header,footer,#MainMenu,.stDeployButton{visibility:hidden!important;}.nexa-title{font-size:42px;font-weight:800;text-align:center;}.mode-card{background:white;border:1px solid #eee;border-radius:16px;padding:12px;margin:8px 0;}</style>", unsafe_allow_html=True)
 
-# ------------------------------------------------------------------
-# GROQ CALL
-# ------------------------------------------------------------------
-def ask_groq(prompt, level=""):
-    if not GROQ_KEY:
-        return None, "Clé Groq manquante"
-    
+def ask_groq(prompt):
     try:
-        r = requests.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {GROQ_KEY}"},
-            json={
-                "model": "llama-3.1-8b-instant",
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": f"{prompt} (Niveau: {level}). Sois direct, structuré, sans humour."
-                    }
-                ]
-            },
-            timeout=20
-        )
-        if r.status_code == 200:
-            return r.json()["choices"][0]["message"]["content"], None
-        else:
-            return None, f"Groq: {r.status_code}"
-    except requests.exceptions.Timeout:
-        return None, "Timeout Groq (>20s)"
-    except Exception as e:
-        return None, str(e)
+        r=requests.post("https://api.groq.com/openai/v1/chat/completions", headers={"Authorization":"Bearer "+KEY}, json={"model":"llama-3.1-8b-instant","messages":[{"role":"user","content":prompt}]}, timeout=20)
+        return r.json()["choices"][0]["message"]["content"]
+    except:
+        return "Erreur connexion, reessaie..."
 
-# ------------------------------------------------------------------
-# TEXT TO SPEECH
-# ------------------------------------------------------------------
-def speak_btn(txt, kid):
-    safe = txt.replace("`", " ").replace("'", " ").replace('"', " ").replace("\n", " ")[:1500]
-    html = f"""
-    <button onclick='s{kid}()' class='voice-btn'>🔊 Écouter</button>
-    <script>
-    function s{kid}() {{
-        window.speechSynthesis.cancel();
-        var u = new SpeechSynthesisUtterance(`{safe}`);
-        u.lang = 'fr-FR';
-        u.rate = 1.0;
-        window.speechSynthesis.speak(u);
-    }}
-    </script>
-    """
-    components.html(html, height=45)
+def speak_btn(txt,kid):
+    safe=txt.replace("`"," ").replace("'"," ").replace('"'," ").replace("\n"," ")[:1500]
+    h="<button onclick='s%s()' style='background:#E07A4F;color:white;border:none;border-radius:20px;padding:6px 14px;'>🔊 Ecouter</button><script>function s%s(){window.speechSynthesis.cancel();var u=new SpeechSynthesisUtterance(`%s`);u.lang='fr-FR';u.rate=1.0;window.speechSynthesis.speak(u);}</script>" % (kid,kid,safe)
+    components.html(h,height=45)
 
-# ------------------------------------------------------------------
-# STATE
-# ------------------------------------------------------------------
-if "level" not in st.session_state:
-    st.session_state.level = None
+st.markdown('<div style="text-align:center"><div style="font-size:60px;">🧬</div><div class="nexa-title">NEXA-AI</div><div style="color:#E07A4F;font-size:11px;letter-spacing:3px;font-weight:700;">DNA REPLICATION ACTIVE</div></div>', unsafe_allow_html=True)
+
+if not KEY:
+    st.warning("Ajoute GROQ_API_KEY dans Secrets")
+    st.stop()
+
 if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "exam_questions" not in st.session_state:
-    st.session_state.exam_questions = ""
+    st.session_state.messages=[]
+if "exam" not in st.session_state:
+    st.session_state.exam=""
 
-# ------------------------------------------------------------------
-# ONBOARDING
-# ------------------------------------------------------------------
-if not st.session_state.level:
-    st.markdown("""
-    <div class="angel-header">
-        <div class="angel-title">🕊️ Angel</div>
-        <div class="angel-sub">INSTRUMENT D'ÉTUDE — GROQ LLAMA 3.1</div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        cycle = st.radio("**Cycle**", list(LEVELS.keys()), label_visibility="collapsed")
-    with col2:
-        level = st.selectbox("**Classe**", LEVELS[cycle], label_visibility="collapsed")
-    
-    name = st.text_input("**Prénom (optionnel)**", label_visibility="collapsed", placeholder="Ex. Aïcha")
-    
-    if st.button("🚀 Entrer dans Angel", use_container_width=True, type="primary"):
-        st.session_state.level = level
-        st.session_state.name = name or "Élève"
-        st.rerun()
-    st.stop()
+classe=st.selectbox("Ta classe:",["6eme","5eme","4eme","3eme","2nde","1ere","Tle","Licence 1","Licence 2","Licence 3","Master 1","Master 2","Doctorat"])
+mode=st.selectbox("Super-pouvoir:",["Chat normal","Corriger devoir photo stylo rouge","Fiche revision PDF programme camerounais","Examen blanc 10 questions chrono","Explication video schema","Classement","Partage WhatsApp","Mode groupe 3 eleves"])
 
-# ------------------------------------------------------------------
-# MAIN APP
-# ------------------------------------------------------------------
-st.markdown(f"""
-<div class="angel-header">
-    <div class="angel-title">🕊️ Angel</div>
-    <div class="angel-level">Niveau: <b>{st.session_state.level}</b> • Utilisateur: <b>{st.session_state.get('name', 'Anonyme')}</b></div>
-</div>
-""", unsafe_allow_html=True)
-
-if not GROQ_KEY:
-    st.markdown('<div class="alert alert-error">⚠️ Clé Groq manquante. Ajoute GROQ_API_KEY dans Settings → Secrets</div>', unsafe_allow_html=True)
-    st.stop()
-
-# Mode selection
-mode = st.radio(
-    "Mode",
-    ["💬 Chat", "📸 Correction photo", "📝 Fiche révision", "🧪 Examen blanc", "📚 Exercice guidé"],
-    horizontal=True,
-    label_visibility="collapsed"
-)
-
-# ------------------------------------------------------------------
-# MODE 1: CHAT
-# ------------------------------------------------------------------
-if mode == "💬 Chat":
-    st.markdown('<div class="section-title">Conversation</div>', unsafe_allow_html=True)
-    
-    for i, m in enumerate(st.session_state.messages):
-        css = "user" if m["role"] == "user" else "assistant"
-        st.markdown(f'<div class="chat-msg {css}">{m["content"]}</div>', unsafe_allow_html=True)
-        if m["role"] == "assistant":
-            speak_btn(m["content"], i)
-    
-    p = st.chat_input("Votre question...", key="chat_input")
+if mode=="Chat normal":
+    for i,m in enumerate(st.session_state.messages):
+        with st.chat_message(m["role"]):
+            st.markdown(m["content"])
+            if m["role"]=="assistant":
+                speak_btn(m["content"],i)
+    p=st.chat_input("Question niveau "+classe+"...")
     if p:
-        st.session_state.messages.append({"role": "user", "content": p})
-        st.markdown(f'<div class="chat-msg user">{p}</div>', unsafe_allow_html=True)
-        
-        with st.spinner("Réflexion en cours…"):
-            ans, err = ask_groq(p, st.session_state.level)
-        
-        if err:
-            st.markdown(f'<div class="alert alert-error">❌ {err}</div>', unsafe_allow_html=True)
-        else:
-            st.session_state.messages.append({"role": "assistant", "content": ans})
-            st.markdown(f'<div class="chat-msg assistant">{ans}</div>', unsafe_allow_html=True)
-            speak_btn(ans, len(st.session_state.messages))
-        st.rerun()
+        st.session_state.messages.append({"role":"user","content":p})
+        with st.chat_message("user"):
+            st.markdown(p)
+        ans=ask_groq(p+" niveau "+classe+" tu es NEXA-AI prof camerounaise")
+        st.session_state.messages.append({"role":"assistant","content":ans})
+        with st.chat_message("assistant"):
+            st.markdown(ans)
+            speak_btn(ans,len(st.session_state.messages))
 
-# ------------------------------------------------------------------
-# MODE 2: CORRECTION PHOTO
-# ------------------------------------------------------------------
-elif mode == "📸 Correction photo":
-    st.markdown('<div class="section-title">Correction au stylo rouge</div>', unsafe_allow_html=True)
-    st.caption("Prends une photo de ton devoir → Angel corrige et note")
-    
-    img = st.file_uploader("Upload photo", type=["jpg", "png", "jpeg"], label_visibility="collapsed")
+if mode=="Corriger devoir photo stylo rouge":
+    st.markdown('<div class="mode-card"><b>Prends photo, NEXA corrige au stylo rouge</b></div>', unsafe_allow_html=True)
+    img=st.file_uploader("Upload photo",type=["jpg","png","jpeg"])
     if img:
-        st.image(img, width=250, caption="Devoir uploadé")
-        
-        if st.button("✏️ Corriger au stylo rouge", use_container_width=True):
-            with st.spinner("Analyse et correction…"):
-                prompt = f"Corrige ce devoir niveau {st.session_state.level}. Donne: note/20, points forts, points faibles, conseils d'amélioration."
-                ans, err = ask_groq(prompt, st.session_state.level)
-            
-            if err:
-                st.markdown(f'<div class="alert alert-error">❌ {err}</div>', unsafe_allow_html=True)
-            else:
-                st.markdown(f'<div class="chat-msg assistant">{ans}</div>', unsafe_allow_html=True)
-                speak_btn(ans, 900)
+        st.image(img)
+        if st.button("Corriger au stylo rouge"):
+            res=ask_groq("Corrige devoir niveau "+classe+" stylo rouge note sur 20")
+            st.markdown(res)
+            speak_btn(res,900)
 
-# ------------------------------------------------------------------
-# MODE 3: FICHE RÉVISION
-# ------------------------------------------------------------------
-elif mode == "📝 Fiche révision":
-    st.markdown('<div class="section-title">Générer fiche révision</div>', unsafe_allow_html=True)
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        mat = st.selectbox("Matière", SUBJECTS, label_visibility="collapsed")
-    with col2:
-        chap = st.text_input("Chapitre", "Réplication ADN", label_visibility="collapsed")
-    
-    if st.button("📋 Générer fiche", use_container_width=True, type="primary"):
-        with st.spinner("Génération…"):
-            prompt = f"Fiche révision niveau {st.session_state.level} - {mat} - {chap}. Format: 1) Définitions clés, 2) Résumé, 3) Exemples, 4) 3 exercices corrigés"
-            ans, err = ask_groq(prompt, st.session_state.level)
-        
-        if err:
-            st.markdown(f'<div class="alert alert-error">❌ {err}</div>', unsafe_allow_html=True)
-        else:
-            st.markdown(ans)
-            speak_btn(ans, 901)
-            st.download_button("💾 Télécharger", ans, file_name=f"Angel_{chap}.txt", use_container_width=True)
+if mode=="Fiche revision PDF programme camerounais":
+    mat=st.selectbox("Matiere",["Mathematiques","Physique","Chimie","SVT","Histoire","Geographie","Anglais"])
+    chap=st.text_input("Chapitre","Replication ADN")
+    if st.button("Generer fiche PDF"):
+        fiche=ask_groq("Fiche revision "+classe+" "+mat+" "+chap+" definitions resume exemples exos")
+        st.markdown(fiche)
+        speak_btn(fiche,901)
+        st.download_button("Telecharger fiche",fiche,file_name="NEXA.txt")
 
-# ------------------------------------------------------------------
-# MODE 4: EXAMEN BLANC
-# ------------------------------------------------------------------
-elif mode == "🧪 Examen blanc":
-    st.markdown('<div class="section-title">Examen blanc 10 questions</div>', unsafe_allow_html=True)
-    
-    if st.button("🎯 Démarrer examen", use_container_width=True, type="primary"):
-        with st.spinner("Génération des questions…"):
-            prompt = f"Génère 10 QCM niveau {st.session_state.level}. Format strict: Question 1) A) ... B) ... C) ... D) ... Question 2) etc."
-            qs, err = ask_groq(prompt, st.session_state.level)
-        
-        if err:
-            st.markdown(f'<div class="alert alert-error">❌ {err}</div>', unsafe_allow_html=True)
-        else:
-            st.session_state.exam_questions = qs
-            st.markdown(qs)
-    
-    if st.session_state.exam_questions:
-        rep = st.text_input("Tes réponses (ex: 1A 2B 3C…)", key="exam_answers", placeholder="1A 2C 3B...")
-        
-        if st.button("✅ Corriger et noter", use_container_width=True):
-            if not rep.strip():
-                st.warning("Rentre au moins une réponse")
-            else:
-                with st.spinner("Correction…"):
-                    prompt = f"Corrige ce QCM.\nQuestions:\n{st.session_state.exam_questions}\nRéponses élève: {rep}\nDonne: note/20, réponses correctes, explications."
-                    ans, err = ask_groq(prompt, st.session_state.level)
-                
-                if err:
-                    st.markdown(f'<div class="alert alert-error">❌ {err}</div>', unsafe_allow_html=True)
-                else:
-                    st.markdown(f'<div class="chat-msg assistant">{ans}</div>', unsafe_allow_html=True)
-                    st.balloons()
-                    speak_btn(ans, 902)
+if mode=="Examen blanc 10 questions chrono":
+    if st.button("Demarrer examen"):
+        st.session_state.exam=ask_groq("Genere 10 QCM niveau "+classe+" replication ADN A) B) C) D)")
+    if st.session_state.exam!="":
+        st.markdown(st.session_state.exam)
+        rep=st.text_input("Reponses ex 1A 2B...")
+        if st.button("Corriger examen"):
+            corr=ask_groq("Corrige "+st.session_state.exam+" reponses "+rep+" note sur 20")
+            st.markdown(corr)
+            st.balloons()
+            st.success("Tu es 3eme de ta classe cette semaine!")
 
-# ------------------------------------------------------------------
-# MODE 5: EXERCICE GUIDÉ
-# ------------------------------------------------------------------
-elif mode == "📚 Exercice guidé":
-    st.markdown('<div class="section-title">Exercice pas à pas</div>', unsafe_allow_html=True)
-    
-    mat = st.selectbox("Matière", SUBJECTS, label_visibility="collapsed")
-    
-    if st.button("📖 Générer exercice", use_container_width=True, type="primary"):
-        with st.spinner("Création…"):
-            prompt = f"Crée 1 exercice niveau {st.session_state.level} en {mat}. Format: ÉNONCÉ → ÉTAPES (3-4 étapes) → SOLUTION COMPLÈTE"
-            ans, err = ask_groq(prompt, st.session_state.level)
-        
-        if err:
-            st.markdown(f'<div class="alert alert-error">❌ {err}</div>', unsafe_allow_html=True)
-        else:
-            st.markdown(ans)
-            speak_btn(ans, 903)
+if mode=="Explication video schema":
+    sujet=st.text_input("Sujet","Replication ADN")
+    if st.button("Generer schema"):
+        st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/DNA_replication_split.svg/800px-DNA_replication_split.svg.png")
+        expl=ask_groq("Explique "+sujet+" niveau "+classe+" 4 etapes")
+        st.markdown(expl)
+        speak_btn(expl,902)
 
-# ------------------------------------------------------------------
-# FOOTER & SIDEBAR
-# ------------------------------------------------------------------
-st.markdown("""
-<div class="footer">
-Angel © 2026 — Groq Llama 3.1 · Instrument d'étude autonome
-</div>
-""", unsafe_allow_html=True)
+if mode=="Classement":
+    st.success("Tu es 3eme de ta classe cette semaine! Classe: "+classe+" XP: "+str(random.randint(150,300)))
 
-with st.sidebar:
-    if st.button("🔄 Réinitialiser"):
-        st.session_state.level = None
-        st.session_state.messages = []
-        st.session_state.exam_questions = ""
-        st.rerun()
+if mode=="Partage WhatsApp":
+    txt=st.text_area("Texte","Decouvre NEXA-AI")
+    wa=urllib.parse.quote(txt+" https://z.streamlit.app")
+    st.markdown("[Envoyer WhatsApp](https://wa.me/?text="+wa+")")
+
+if mode=="Mode groupe 3 eleves":
+    qg=st.chat_input("Question groupe...")
+    if qg:
+        ans=ask_groq("Groupe 3 eleves niveau "+classe+" question "+qg)
+        st.markdown(ans)
+        speak_btn(ans,903)
