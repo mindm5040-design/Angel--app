@@ -1,14 +1,12 @@
 """
-Angel — Instrument d'étude V3
-Groq Llama 3.1 • Design Premium • TTS complet • Entrée vocale
+Angel — Instrument d'étude V4
+Groq Llama 3.1 • Design Premium • TTS • Version stable
 """
 
 import streamlit as st
 import requests
 import os
 import streamlit.components.v1 as components
-from gtts import gTTS
-import io
 
 # ------------------------------------------------------------------
 # CONFIG
@@ -60,13 +58,11 @@ header, footer, #MainMenu, .stDeployButton { visibility: hidden; }
 
 .mode-tabs {
     display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px;
-    padding: 0 4px;
 }
 .mode-tab {
     background: rgba(16,20,28,0.8); border: 1px solid rgba(237,239,243,0.15);
     border-radius: 10px; padding: 10px 16px; font-size: 13px; cursor: pointer;
     transition: all .25s; color: #9aa2b1; font-weight: 500;
-    backdrop-filter: blur(10px);
 }
 .mode-tab:hover {
     border-color: #ffd98a; color: #ffd98a; background: rgba(255,217,138,0.08);
@@ -104,23 +100,6 @@ header, footer, #MainMenu, .stDeployButton { visibility: hidden; }
     transition: all .2s; margin-top: 8px; display: inline-block;
 }
 .voice-btn:hover { transform: scale(1.08); box-shadow: 0 6px 16px rgba(255,217,138,0.4); }
-.voice-btn:active { transform: scale(0.96); }
-
-.mic-btn {
-    background: linear-gradient(120deg, #7de0c9, #5db8a7);
-    color: white; border: none; border-radius: 12px;
-    padding: 10px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
-    transition: all .2s; width: 100%;
-}
-.mic-btn:hover { box-shadow: 0 6px 16px rgba(125,224,201,0.3); }
-.mic-btn.listening {
-    background: #ff8a7a;
-    animation: pulse 1.2s infinite;
-}
-@keyframes pulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(255,138,122,0.7); }
-    50% { box-shadow: 0 0 0 10px rgba(255,138,122,0); }
-}
 
 .section-title {
     font-family: 'Space Grotesk', sans-serif;
@@ -133,28 +112,9 @@ header, footer, #MainMenu, .stDeployButton { visibility: hidden; }
     border-radius: 2px;
 }
 
-.input-group {
-    margin-bottom: 14px;
-}
-.input-group label {
-    font-size: 12px; font-weight: 600; color: #9aa2b1;
-    display: block; margin-bottom: 6px; text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-.input-field {
-    background: rgba(16,20,28,0.8); border: 1px solid rgba(237,239,243,0.15);
-    border-radius: 10px; padding: 12px 14px; color: #edeff3;
-    font-size: 13px; font-family: inherit;
-    transition: all .2s;
-}
-.input-field:focus {
-    outline: none; border-color: #ffd98a; background: rgba(16,20,28,0.95);
-    box-shadow: 0 0 12px rgba(255,217,138,0.2);
-}
-
 .alert {
     padding: 12px 14px; border-radius: 10px; margin-bottom: 14px;
-    font-size: 13px; display: flex; gap: 10px; align-items: flex-start;
+    font-size: 13px;
 }
 .alert-error {
     background: rgba(255,107,107,0.1); border-left: 3px solid #ff6b6b;
@@ -173,14 +133,11 @@ header, footer, #MainMenu, .stDeployButton { visibility: hidden; }
     width: 100%;
 }
 .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(255,217,138,0.3); }
-.btn-primary:active { transform: translateY(0); }
 
 .footer {
     text-align: center; font-size: 11px; color: #5c6577;
     margin-top: 40px; padding-top: 20px; border-top: 1px solid rgba(237,239,243,0.1);
 }
-
-.stChatInput { max-width: 800px; margin: 0 auto; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -195,7 +152,7 @@ LEVELS = {
 SUBJECTS = ["Maths", "Physique-Chimie", "SVT", "Français", "Anglais", "Histoire-Géo", "Philosophie", "Informatique"]
 
 # ------------------------------------------------------------------
-# API
+# GROQ API
 # ------------------------------------------------------------------
 def get_groq_key():
     try:
@@ -208,37 +165,50 @@ def get_groq_key():
 GROQ_KEY = get_groq_key()
 
 def ask_groq(prompt, level=""):
+    """Appel simple à Groq avec gestion d'erreur explicite"""
     if not GROQ_KEY:
-        return None, "Clé Groq manquante"
+        return None, "❌ Clé Groq manquante"
     
     try:
-        r = requests.post(
+        response = requests.post(
             "https://api.groq.com/openai/v1/chat/completions",
             headers={"Authorization": f"Bearer {GROQ_KEY}"},
             json={
                 "model": "llama-3.1-8b-instant",
                 "messages": [{
                     "role": "user",
-                    "content": f"{prompt} (Niveau: {level}). Sois direct, structuré, sans humour."
-                }]
+                    "content": f"{prompt} (Niveau: {level})"
+                }],
+                "max_tokens": 1000
             },
-            timeout=20
+            timeout=30
         )
-        if r.status_code == 200:
-            return r.json()["choices"][0]["message"]["content"], None
+        
+        if response.status_code == 200:
+            try:
+                return response.json()["choices"][0]["message"]["content"], None
+            except:
+                return None, "❌ Erreur parsing réponse Groq"
+        elif response.status_code == 401:
+            return None, "❌ Clé Groq invalide (401)"
+        elif response.status_code == 429:
+            return None, "❌ Trop de requêtes (429) - attends quelques secondes"
         else:
-            return None, f"Groq {r.status_code}"
+            return None, f"❌ Groq error {response.status_code}"
+            
+    except requests.exceptions.Timeout:
+        return None, "❌ Timeout Groq (>30s)"
     except Exception as e:
-        return None, str(e)
+        return None, f"❌ Erreur: {str(e)[:50]}"
 
 # ------------------------------------------------------------------
-# TTS (gTTS simplifié)
+# TEXT TO SPEECH
 # ------------------------------------------------------------------
 def speak_text(txt, btn_id):
-    """Crée un bouton pour lire le texte en français"""
+    """Crée un bouton pour lire le texte"""
     safe = txt.replace("`", " ").replace("'", " ").replace('"', " ").replace("\n", " ")[:2000]
     html = f"""
-    <button onclick='speak{btn_id}()' class='voice-btn'>🔊 Lire à voix haute</button>
+    <button onclick='speak{btn_id}()' class='voice-btn'>🔊 Écouter</button>
     <script>
     function speak{btn_id}() {{
         window.speechSynthesis.cancel();
@@ -253,62 +223,14 @@ def speak_text(txt, btn_id):
     components.html(html, height=50)
 
 # ------------------------------------------------------------------
-# SPEECH RECOGNITION (Web Speech API)
-# ------------------------------------------------------------------
-def voice_input_widget(key):
-    """Widget de reconnaissance vocale"""
-    html = f"""
-    <div style="margin: 12px 0;">
-    <button id='mic{key}' onclick='startMic{key}()' class='mic-btn'>🎤 Dicter votre question</button>
-    <input type='hidden' id='voiceText{key}' value=''>
-    <div id='voiceStatus{key}' style='color: #9aa2b1; font-size: 12px; margin-top: 6px;'></div>
-    </div>
-    
-    <script>
-    function startMic{key}() {{
-        const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-        recognition.lang = 'fr-FR';
-        recognition.continuous = false;
-        recognition.interimResults = false;
-        
-        const btn = document.getElementById('mic{key}');
-        const status = document.getElementById('voiceStatus{key}');
-        const input = document.getElementById('voiceText{key}');
-        
-        btn.classList.add('listening');
-        btn.textContent = '🎤 Écoute en cours...';
-        status.textContent = 'En écoute...';
-        
-        recognition.onresult = (event) => {{
-            let text = '';
-            for (let i = event.resultIndex; i < event.results.length; i++) {{
-                text += event.results[i][0].transcript;
-            }}
-            input.value = text;
-            status.textContent = 'Texte reconnu: ' + text;
-            btn.textContent = '🎤 Dicter votre question';
-            btn.classList.remove('listening');
-        }};
-        
-        recognition.onerror = () => {{
-            status.textContent = 'Erreur de reconnaissance';
-            btn.classList.remove('listening');
-            btn.textContent = '🎤 Dicter votre question';
-        }};
-        
-        recognition.start();
-    }}
-    </script>
-    """
-    components.html(html, height=100)
-    return st.session_state.get(f"voice_{key}", "")
-
-# ------------------------------------------------------------------
 # STATE
 # ------------------------------------------------------------------
-for k in ["level", "messages", "exam_questions", "voice_input"]:
-    if k not in st.session_state:
-        st.session_state[k] = None if k != "messages" else []
+if "level" not in st.session_state:
+    st.session_state.level = None
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+if "exam_questions" not in st.session_state:
+    st.session_state.exam_questions = ""
 
 # ------------------------------------------------------------------
 # ONBOARDING
@@ -363,32 +285,32 @@ mode = st.radio(
 if mode == "💬 Chat":
     st.markdown('<div class="section-title">Conversation d\'étude</div>', unsafe_allow_html=True)
     
-    chat_container = st.container()
-    with chat_container:
-        for i, m in enumerate(st.session_state.messages):
-            css = "user" if m["role"] == "user" else "assistant"
-            st.markdown(f'<div class="chat-msg {css}">{m["content"]}</div>', unsafe_allow_html=True)
-            if m["role"] == "assistant":
-                speak_text(m["content"], i)
+    # Afficher les messages existants
+    for i, m in enumerate(st.session_state.messages):
+        css = "user" if m["role"] == "user" else "assistant"
+        st.markdown(f'<div class="chat-msg {css}">{m["content"]}</div>', unsafe_allow_html=True)
+        if m["role"] == "assistant":
+            speak_text(m["content"], i)
     
-    # Entrée vocale
-    st.markdown('<div class="section-title">Dicter votre question</div>', unsafe_allow_html=True)
-    voice_input_widget("chat")
-    
-    p = st.chat_input("Ou écrire votre question...", key="chat_input")
+    # Input chat
+    p = st.chat_input("Posez votre question...", key="chat_input")
     if p:
+        # Ajouter le message utilisateur
         st.session_state.messages.append({"role": "user", "content": p})
         st.markdown(f'<div class="chat-msg user">{p}</div>', unsafe_allow_html=True)
         
-        with st.spinner("🤔 Réflexion en cours…"):
+        # Appeler Groq
+        with st.spinner("⏳ Groq réfléchit…"):
             ans, err = ask_groq(p, st.session_state.level)
         
+        # Afficher résultat ou erreur
         if err:
-            st.markdown(f'<div class="alert alert-error">❌ {err}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="alert alert-error">{err}</div>', unsafe_allow_html=True)
         else:
             st.session_state.messages.append({"role": "assistant", "content": ans})
             st.markdown(f'<div class="chat-msg assistant">{ans}</div>', unsafe_allow_html=True)
-            speak_text(ans, len(st.session_state.messages))
+            speak_text(ans, len(st.session_state.messages) - 1)
+        
         st.rerun()
 
 # ------------------------------------------------------------------
@@ -396,19 +318,19 @@ if mode == "💬 Chat":
 # ------------------------------------------------------------------
 elif mode == "📸 Correction photo":
     st.markdown('<div class="section-title">Correction au stylo rouge</div>', unsafe_allow_html=True)
-    st.caption("📸 Upload une photo de ton devoir → Angel corrige et note")
+    st.caption("Upload une photo de devoir → Angel corrige et note")
     
     img = st.file_uploader("Upload photo", type=["jpg", "png", "jpeg"], label_visibility="collapsed")
     if img:
-        st.image(img, width=280, caption="Devoir uploadé")
+        st.image(img, width=280)
         
         if st.button("✏️ Corriger", use_container_width=True):
             with st.spinner("Analyse…"):
-                prompt = f"Corrige ce devoir niveau {st.session_state.level}. Donne: note/20, points forts, points faibles, conseils."
+                prompt = f"Corrige ce devoir niveau {st.session_state.level}. Note/20, points forts, points faibles, conseils."
                 ans, err = ask_groq(prompt, st.session_state.level)
             
             if err:
-                st.markdown(f'<div class="alert alert-error">❌ {err}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="alert alert-error">{err}</div>', unsafe_allow_html=True)
             else:
                 st.markdown(f'<div class="chat-msg assistant">{ans}</div>', unsafe_allow_html=True)
                 speak_text(ans, 900)
@@ -427,11 +349,11 @@ elif mode == "📝 Fiche révision":
     
     if st.button("📋 Générer", use_container_width=True):
         with st.spinner("Génération…"):
-            prompt = f"Fiche révision niveau {st.session_state.level} - {mat} - {chap}. Format: 1) Définitions, 2) Résumé, 3) Exemples, 4) 3 exercices corrigés"
+            prompt = f"Fiche révision {st.session_state.level} - {mat} - {chap}: définitions, résumé, exemples, 3 exercices"
             ans, err = ask_groq(prompt, st.session_state.level)
         
         if err:
-            st.markdown(f'<div class="alert alert-error">❌ {err}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="alert alert-error">{err}</div>', unsafe_allow_html=True)
         else:
             st.markdown(ans)
             speak_text(ans, 901)
@@ -445,28 +367,28 @@ elif mode == "🧪 Examen blanc":
     
     if st.button("🎯 Démarrer", use_container_width=True):
         with st.spinner("Génération…"):
-            prompt = f"Génère 10 QCM niveau {st.session_state.level}. Format: Question 1) A) ... B) ... C) ... D) ... Question 2) etc."
+            prompt = f"Génère 10 QCM niveau {st.session_state.level}. Format: Question 1) A) B) C) D) ..."
             qs, err = ask_groq(prompt, st.session_state.level)
         
         if err:
-            st.markdown(f'<div class="alert alert-error">❌ {err}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="alert alert-error">{err}</div>', unsafe_allow_html=True)
         else:
             st.session_state.exam_questions = qs
             st.markdown(qs)
     
     if st.session_state.exam_questions:
-        rep = st.text_input("Tes réponses (1A 2B 3C…)", placeholder="1A 2C 3B 4D...")
+        rep = st.text_input("Tes réponses", placeholder="1A 2B 3C…")
         
         if st.button("✅ Corriger", use_container_width=True):
             if not rep.strip():
-                st.warning("Rentre au moins une réponse")
+                st.warning("Entre au moins une réponse")
             else:
                 with st.spinner("Correction…"):
-                    prompt = f"Corrige:\n{st.session_state.exam_questions}\nRéponses: {rep}\nDonne: note/20, bonnes réponses, explications."
+                    prompt = f"Corrige: {st.session_state.exam_questions} Réponses: {rep} Note/20, bonnes réponses, explications"
                     ans, err = ask_groq(prompt, st.session_state.level)
                 
                 if err:
-                    st.markdown(f'<div class="alert alert-error">❌ {err}</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="alert alert-error">{err}</div>', unsafe_allow_html=True)
                 else:
                     st.markdown(f'<div class="chat-msg assistant">{ans}</div>', unsafe_allow_html=True)
                     st.balloons()
@@ -482,11 +404,11 @@ elif mode == "📚 Exercice guidé":
     
     if st.button("📖 Générer", use_container_width=True):
         with st.spinner("Création…"):
-            prompt = f"Crée 1 exercice niveau {st.session_state.level} en {mat}. Format: ÉNONCÉ → ÉTAPES → SOLUTION"
+            prompt = f"Crée 1 exercice {st.session_state.level} en {mat}: ÉNONCÉ → ÉTAPES → SOLUTION"
             ans, err = ask_groq(prompt, st.session_state.level)
         
         if err:
-            st.markdown(f'<div class="alert alert-error">❌ {err}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="alert alert-error">{err}</div>', unsafe_allow_html=True)
         else:
             st.markdown(ans)
             speak_text(ans, 903)
@@ -494,7 +416,7 @@ elif mode == "📚 Exercice guidé":
 # Footer
 st.markdown("""
 <div class="footer">
-Angel © 2026 · Groq Llama 3.1 · Design Premium · Voix + Dictée
+Angel © 2026 · Groq Llama 3.1 · Design Premium · TTS
 </div>
 """, unsafe_allow_html=True)
 
