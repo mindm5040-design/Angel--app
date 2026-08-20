@@ -1,47 +1,41 @@
-import streamlit.components.v1 as components
+import streamlit as st
+import requests, base64
+from pathlib import Path
 
-components.html("""
-<div style="display:flex; flex-direction:column; align-items:center; background:#fcfcf9; padding:30px; border-radius:24px; font-family:sans-serif;">
+st.set_page_config(page_title="Angel AI", page_icon="🧠", layout="centered")
+
+# --- LOGO VIDEO CERVEAU QUI TOURNE ---
+def get_video_base64(path):
+    if Path(path).exists():
+        return base64.b64encode(Path(path).read_bytes()).decode()
+    return None
+
+video_b64 = get_video_base64("brain.mp4")
+
+st.markdown(f"""
 <style>
-  .brain-wrap {width:140px; height:140px; position:relative;}
-  .brain-outline {position:absolute; inset:0; z-index:2; pointer-events:none;}
-  .neurons {position:absolute; inset:12%; z-index:1; animation: spin 10s linear infinite; transform-origin:center;}
-  @keyframes spin {from{transform:rotate(0deg)} to{transform:rotate(360deg)}}
-  .node {animation: glow 1.8s ease-in-out infinite;}
-  .node:nth-child(odd){animation-delay:0.3s}
-  @keyframes glow {0%,100%{opacity:0.8; filter:brightness(1)} 50%{opacity:1; filter:brightness(1.5) drop-shadow(0 0 6px #E07A4F)}}
-  .link {stroke-dasharray: 4 4; animation: dash 2s linear infinite;}
-  @keyframes dash {to{stroke-dashoffset:-20}}
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=DM+Sans:wght@400;600&display=swap');
+.stApp {{background:#fcfcf9!important; font-family:'DM Sans', sans-serif!important;}}
+header, footer, #MainMenu {{visibility:hidden!important;}}
+.angel-hero {{font-family:'Space Grotesk', sans-serif; font-size:42px; font-weight:700; letter-spacing:-2px; color:#0a0a0a; line-height:0.9; margin:10px 0 4px; text-align:center;}}
+.brain-container {{display:flex; justify-content:center; margin:10px 0 20px;}}
+.brain-video {{width:140px; height:140px; border-radius:50%; object-fit:cover; box-shadow:0 0 40px rgba(224,122,79,0.3), 0 8px 24px rgba(0,0,0,0.15); border:2px solid #E07A4F;}}
+div[data-testid="stButton"] > button {{
+  background: rgba(255,255,255,0.7)!important; backdrop-filter: blur(20px) saturate(180%)!important;
+  border:1px solid rgba(0,0,0,0.08)!important; border-radius:18px!important; height:72px!important;
+  font-family:'Space Grotesk', sans-serif!important; font-weight:600!important; font-size:16px!important;
+  color:#0a0a0a!important; box-shadow: 0 4px 12px rgba(0,0,0,0.04)!important;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)!important;
+}}
+div[data-testid="stButton"] > button:hover {{transform: perspective(600px) rotateX(4deg) rotateY(-4deg) translateY(-4px) scale(1.02)!important; box-shadow: 0 20px 40px rgba(0,0,0,0.1)!important;}}
+button[kind="primary"] {{background: #0a0a0a!important; color:white!important; border:none!important;}}
 </style>
 
-<div class="brain-wrap">
-  <!-- CERVEAU CONTOUR FIXE -->
-  <svg class="brain-outline" viewBox="0 0 100 100">
-    <path d="M 20 35 C 10 20, 35 5, 50 18 C 65 5, 90 20, 80 35 C 95 40, 90 65, 75 68 C 78 85, 55 85, 50 70 C 45 85, 22 85, 25 68 C 10 65, 5 40, 20 35 Z" 
-    fill="none" stroke="#0a0a0a" stroke-width="2.5" stroke-linecap="round"/>
-  </svg>
-
-  <!-- NEURONES QUI TOURNENT À L'INTÉRIEUR -->
-  <svg class="neurons" viewBox="0 0 100 100">
-    <g stroke="#E07A4F" stroke-width="1" opacity="0.6">
-      <line class="link" x1="20" y1="30" x2="50" y2="20"/>
-      <line class="link" x1="50" y1="20" x2="80" y2="30"/>
-      <line class="link" x1="80" y1="30" x2="70" y2="60"/>
-      <line class="link" x1="70" y1="60" x2="40" y2="70"/>
-      <line class="link" x1="40" y1="70" x2="20" y2="30"/>
-      <line class="link" x1="20" y1="30" x2="70" y2="60"/>
-      <line class="link" x1="50" y1="20" x2="40" y2="70"/>
-    </g>
-    <circle class="node" cx="20" cy="30" r="5" fill="#E07A4F"/>
-    <circle class="node" cx="50" cy="20" r="6" fill="#E07A4F"/>
-    <circle class="node" cx="80" cy="30" r="5" fill="#E07A4F"/>
-    <circle class="node" cx="70" cy="60" r="7" fill="#E07A4F"/>
-    <circle class="node" cx="40" cy="70" r="5" fill="#E07A4F"/>
-    <circle class="node" cx="50" cy="45" r="4" fill="#0a27a6"/>
-  </svg>
+<div class="brain-container">
+  {"<video class='brain-video' autoplay loop muted playsinline><source src='data:video/mp4;base64,"+video_b64+"' type='video/mp4'></video>" if video_b64 else "<div style='font-size:80px;'>🧠</div>"}
 </div>
+<div class="angel-hero">Angel AI</div>
+<div style="text-align:center; color:#E07A4F; font-size:10px; letter-spacing:3px; font-weight:700; margin-bottom:24px;">NEURAL ENGINE • ACTIVE</div>
+""", unsafe_allow_html=True)
 
-<div style="margin-top:16px; font-size:28px; font-weight:700; letter-spacing:-1px; color:#0a0a0a;">Angel AI</div>
-<div style="font-size:10px; letter-spacing:3px; color:#999; font-weight:700; margin-top:4px;">NEURAL • LEARNING</div>
-</div>
-""", height=260)
+KEY = st.se
