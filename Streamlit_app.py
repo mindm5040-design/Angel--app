@@ -3,95 +3,28 @@ import requests, base64
 
 st.set_page_config(page_title="Angel", page_icon="🕊️", layout="centered")
 
-KEY = st.secrets.get("GROQ_API_KEY","")
-if not KEY:
-    st.error("Mets GROQ_API_KEY dans Secrets")
-    st.stop()
+# --- DESIGN LE PLUS AIME AU MONDE - MESSENGER ---
+st.markdown("""
+<style>
+.stApp {background:#ffffff!important;}
+header, footer, #MainMenu {visibility:hidden!important;}
+div[data-testid="stChatMessages"] {max-width:720px; margin:auto;}
+.stChatMessage {border:none!important; background:transparent!important;}
+div[data-testid="stChatMessageContent"] {padding:0!important;}
 
-CLASSES = ["6e","5e","4e","3e","Seconde","Première","Terminale","Licence 1","Licence 2","Licence 3","Master 1","Master 2","Doctorat"]
+/* BUBBLES */
+[data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]) [data-testid="stChatMessageContent"]{
+    background:#0a27a6!important; color:white!important; 
+    border-radius:18px 18px 4px 18px!important; padding:10px 14px!important; max-width:80%; margin-left:auto;
+}
+[data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-assistant"]) [data-testid="stChatMessageContent"]{
+    background:#f0f2f5!important; color:black!important;
+    border-radius:18px 18px 18px 4px!important; padding:10px 14px!important; max-width:80%;
+}
 
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "classe" not in st.session_state:
-    st.session_state.classe = "Master 1"
-
-def ask(question, image=None):
-    if image:
-        b64 = base64.b64encode(image).decode()
-        payload = {
-            "model": "meta-llama/llama-4-scout-17b-16e-instruct",
-            "messages": [{
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": f"[{st.session_state.classe}] {question}"},
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
-                ]
-            }]
-        }
-    else:
-        payload = {
-            "model": "openai/gpt-oss-20b",
-            "messages": [
-                {"role": "system", "content": f"Tu es Angel, prof pour niveau {st.session_state.classe}. Tu expliques simple et clair, adapté à ce niveau."},
-                {"role": "user", "content": question}
-            ]
-        }
-
-    res = requests.post(
-        "https://api.groq.com/openai/v1/chat/completions",
-        headers={"Authorization": f"Bearer {KEY}"},
-        json=payload,
-        timeout=60
-    ).json()
-
-    return res["choices"][0]["message"]["content"]
-
-st.title("🕊️ Angel")
-st.caption(f"Niveau actuel : {st.session_state.classe} • {len(st.session_state.messages)} messages")
-
-# SELECTION NIVEAU
-with st.expander(f"📚 Changer de niveau : {st.session_state.classe}"):
-    cols = st.columns(4)
-    for i, c in enumerate(CLASSES):
-        with cols[i % 4]:
-            if st.button(c, key=f"classe_{c}", use_container_width=True, type="primary" if c == st.session_state.classe else "secondary"):
-                st.session_state.classe = c
-                st.rerun()
-
-# Historique
-for m in st.session_state.messages:
-    with st.chat_message(m["role"]):
-        st.write(m["content"])
-
-# Photo
-with st.expander("📷 Envoyer une photo"):
-    photo = st.file_uploader("Choisis", type=["jpg","jpeg","png"])
-    camera = st.camera_input("Prends une photo")
-    img = None
-    if camera:
-        img = camera.getvalue()
-    if photo:
-        img = photo.getvalue()
-    if img and st.button("Analyser", type="primary"):
-        reponse = ask("Explique cet exercice étape par étape", img)
-        st.session_state.messages.append({"role": "user", "content": "📷 Photo envoyée"})
-        st.session_state.messages.append({"role": "assistant", "content": reponse})
-        st.rerun()
-
-# Chat
-prompt = st.chat_input("Message")
-
-if prompt:
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.write(prompt)
-
-    reponse = ask(prompt)
-
-    st.session_state.messages.append({"role": "assistant", "content": reponse})
-    with st.chat_message("assistant"):
-        st.write(reponse)
-
-if st.button("🗑️ Effacer la conversation"):
-    st.session_state.messages = []
-    st.rerun()
+/* BARRE BAS FIXE HORIZONTALE */
+div[data-testid="stBottom"] > div {background:white!important; border-top:1px solid #e4e6eb!important; padding:8px!important;}
+div[data-testid="stHorizontalBlock"]{display:flex!important; flex-direction:row!important; flex-wrap:nowrap!important; gap:6px!important; align-items:center!important;}
+div[data-testid="column"] button{border-radius:50%!important; width:42px!important; height:42px!important; background:#0a27a6!important; color:white!important; border:none!important;}
+button[kind="primary"]{background:#ff2e2e!important; border-radius:12px!important; width:44px!important; height:44px!important;}
+input, textarea{background:#f0f2f5!important; border-radius:20px!important; border:none!important
