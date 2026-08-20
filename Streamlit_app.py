@@ -4,6 +4,8 @@ import base64
 import os
 import re
 from pathlib import Path
+from PIL import Image
+import io
 
 st.set_page_config(page_title="Angel AI", page_icon="🧠", layout="centered")
 
@@ -17,10 +19,8 @@ def get_groq_key():
 
 KEY = get_groq_key()
 
-# --- FIX MATHS ---
 def fix_latex(text):
     if not text: return text
-    # Convertit \[ \] en $$ $$ et \( \) en $ $
     text = re.sub(r'\\\[(.*?)\\\]', r'$$\1$$', text, flags=re.DOTALL)
     text = re.sub(r'\\\((.*?)\\\)', r'$\1$', text, flags=re.DOTALL)
     return text
@@ -41,8 +41,11 @@ button[kind="primary"] {background:#0a0a0a!important; color:white!important;}
 def get_video_html():
     p = Path("brain.mp4")
     if p.exists():
-        b64 = base64.b64encode(p.read_bytes()).decode()
-        return f'<video class="brain-video" autoplay loop muted playsinline><source src="data:video/mp4;base64,{b64}" type="video/mp4"></video>'
+        try:
+            b64 = base64.b64encode(p.read_bytes()).decode()
+            return f'<video class="brain-video" autoplay loop muted playsinline><source src="data:video/mp4;base64,{b64}" type="video/mp4"></video>'
+        except:
+            pass
     return '<div style="font-size:90px;">🧠</div>'
 
 st.markdown(f"""
@@ -63,19 +66,47 @@ if "classe" not in st.session_state: st.session_state.classe="Master 1"
 
 def ask_groq(q, img=None):
     try:
-        system_prompt = f"""Tu es Angel, prof niveau {st.session_state.classe}. 
-REGLE MATHS OBLIGATOIRE: Écris TOUTES les formules avec $$ $$ pour les grosses formules et $ $ pour les petites.
+        system_prompt = f"""Tu es Angel, prof niveau {st.session_state.classe}.
+REGLE MATHS: $$ $$ pour grosses formules, $ $ pour petites.
 Exemple: $$\\lim_{{x \\to 1}} \\frac{{x^2-1}}{{x-1}} = 2$$
-INTERDIT d'utiliser \\[ \\] ou \\( \\)."""
+INTERDIT \\[ \\] ou \\( \\)."""
 
         if img:
-            b64=base64.b64encode(img).decode()
-            payload={"model":"meta-llama/llama-4-scout-17b-16e-instruct","messages":[{"role":"user","content":[{"type":"text","text":f"{system_prompt}\n\n[{st.session_state.classe}] {q}"},{"type":"image_url","image_url":{"url":f"data:image/jpeg;base64,{b64}"}}]}]}
+            # COMPRESSION PHOTO - FIX CHOICES
+            im = Image.open(io.BytesIO(img)).convert("RGB")
+            im.thumbnail((1000, 1000))
+            buf = io.BytesIO()
+            im.save(buf, format="JPEG", quality=70)
+            b64 = base64.b64encode(buf.getvalue()).decode()
+            payload={
+                "model":"meta-llama/llama-4-scout-17b-16e-instruct",
+                "messages":[{"role":"user","content":[
+                    {"type":"text","text":f"{system_prompt}\n\n[{st.session_state.classe}] {q}"},
+                    {"type":"image_url","image_url":{"url":f"data:image/jpeg;base64,{b64}"}}
+                ]}],
+                "max_tokens": 1000
+            }
         else:
-            payload={"model":"openai/gpt-oss-20b","messages":[{"role":"system","content":system_prompt},{"role":"user","content":q}]}
-        r=requests.post("https://api.groq.com/openai/v1/chat/completions",headers={"Authorization":f"Bearer {KEY}"},json=payload,timeout=60).json()
-        content = r["choices"][0]["message"]["content"]
-        return fix_latex(content)
+            # FIX: gpt-oss-20b est batch only, on utilise maverick
+            payload={
+                "model":"meta-llama/llama-4-maverick-17b-128e-instruct",
+                "messages":[
+                    {"role":"system","content":system_prompt},
+                    {"role":"user","content":q}
+                ],
+                "max_tokens": 1000
+            }
+
+        r = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {KEY}", "Content-Type":"application/json"},
+            json=payload,
+            timeout=90
+        )
+        data = r.json()
+        if "choices" not in data:
+            return f"Groq dit: {data.get('error',{}).get('message','')} - {str(data)[:400]}"
+        return fix_latex(data["choices"][0]["message"]["content"])
     except Exception as e:
         return f"Erreur: {e}"
 
@@ -85,21 +116,24 @@ with st.expander(f"Niveau: {st.session_state.classe}", expanded=False):
         cols=st.columns(3)
         for i,c in enumerate(items):
             with cols[i%3]:
-                if st.button(c, key=f"cl_{c}", use_container_width=True, type="primary" if c==st.session_state.classe else "secondary"):
-                    st.session_state.classe=c; st.rerun()
+                safe_key = c.replace(" ", "_")
+                if st.button(c, key=f"cl_{safe_key}", use_container_width=True, type="primary" if c==st.session_state.classe else "secondary"):
+                    st.session_state.classe=c
+                    st.rerun()
 
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
         st.markdown(fix_latex(m["content"]))
 
 with st.expander("📸 Photo devoir"):
-    up=st.file_uploader(" ", type=["jpg","png"], label_visibility="collapsed")
+    up=st.file_uploader(" ", type=["jpg","png","jpeg"], label_visibility="collapsed")
     cam=st.camera_input(" ", label_visibility="collapsed")
-    img=cam.getvalue() if cam else (up.getvalue() if up else None)
-    if img and st.button("Analyser", type="primary", use_container_width=True):
-        rep=ask_groq("Explique cet exercice etape par etape", img)
-        st.session_state.messages+=[{"role":"user","content":"📸 Photo"},{"role":"assistant","content":rep}]
-        st.rerun()
+    img_bytes=cam.getvalue() if cam else (up.getvalue() if up else None)
+    if img_bytes and st.button("Analyser", type="primary", use_container_width=True):
+        with st.spinner("Analyse en cours..."):
+            rep=ask_groq("Explique cet exercice etape par etape", img_bytes)
+            st.session_state.messages+=[{"role":"user","content":"📸 Photo"},{"role":"assistant","content":rep}]
+            st.rerun()
 
 prompt=st.chat_input(f"Question niveau {st.session_state.classe}...")
 if prompt:
