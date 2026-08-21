@@ -20,9 +20,9 @@ def get_groq_key():
 KEY = get_groq_key()
 
 def fix_latex(text):
-    if not text: return text
+    if not text: return ""
     text = re.sub(r'\\\[(.*?)\\\]', r'$$\1$$', text, flags=re.DOTALL)
-    text = re.sub(r'\\\((.*?)\\\)', r'$\1$', text, flags=re.DOTALL)
+    text = re.sub(r'\\\((.*?)\\\)', ruu'$\1$', text, flags=re.DOTALL)
     return text
 
 st.markdown("""
@@ -57,7 +57,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 if not KEY:
-    st.warning("⚠️ Mets ta clé dans Settings → Secrets")
+    st.warning("Mets ta clé dans Settings → Secrets")
     st.code('GROQ_API_KEY = "gsk_..."')
     st.stop()
 
@@ -67,29 +67,30 @@ if "classe" not in st.session_state: st.session_state.classe="Master 1"
 def ask_groq(q, img=None):
     try:
         system_prompt = f"""Tu es Angel, prof niveau {st.session_state.classe}.
-REGLE MATHS: $$ $$ pour grosses formules, $ $ pour petites.
+REGLE MATHS OBLIGATOIRE: Écris $$ $$ pour grosses formules et $ $ pour inline.
 Exemple: $$\\lim_{{x \\to 1}} \\frac{{x^2-1}}{{x-1}} = 2$$
 INTERDIT \\[ \\] ou \\( \\)."""
 
         if img:
-            # COMPRESSION PHOTO - FIX CHOICES
             im = Image.open(io.BytesIO(img)).convert("RGB")
-            im.thumbnail((1000, 1000))
+            im.thumbnail((900, 900))
             buf = io.BytesIO()
-            im.save(buf, format="JPEG", quality=70)
+            im.save(buf, format="JPEG", quality=65)
             b64 = base64.b64encode(buf.getvalue()).decode()
             payload={
-                "model":"meta-llama/llama-4-scout-17b-16e-instruct",
-                "messages":[{"role":"user","content":[
-                    {"type":"text","text":f"{system_prompt}\n\n[{st.session_state.classe}] {q}"},
-                    {"type":"image_url","image_url":{"url":f"data:image/jpeg;base64,{b64}"}}
-                ]}],
-                "max_tokens": 1000
+                "model":"llama-3.2-90b-vision-preview",
+                "messages":[{
+                    "role":"user",
+                    "content":[
+                        {"type":"text","text":f"{system_prompt}\n\n[{st.session_state.classe}] {q}"},
+                        {"type":"image_url","image_url":{"url":f"data:image/jpeg;base64,{b64}"}}
+                    ]
+                }],
+                "max_tokens": 1200
             }
         else:
-            # FIX: gpt-oss-20b est batch only, on utilise maverick
             payload={
-                "model":"meta-llama/llama-4-maverick-17b-128e-instruct",
+                "model":"llama-3.3-70b-versatile",
                 "messages":[
                     {"role":"system","content":system_prompt},
                     {"role":"user","content":q}
@@ -105,7 +106,7 @@ INTERDIT \\[ \\] ou \\( \\)."""
         )
         data = r.json()
         if "choices" not in data:
-            return f"Groq dit: {data.get('error',{}).get('message','')} - {str(data)[:400]}"
+            return f"Groq dit: {data.get('error',{}).get('message','inconnu')} | {str(data)[:500]}"
         return fix_latex(data["choices"][0]["message"]["content"])
     except Exception as e:
         return f"Erreur: {e}"
@@ -130,7 +131,7 @@ with st.expander("📸 Photo devoir"):
     cam=st.camera_input(" ", label_visibility="collapsed")
     img_bytes=cam.getvalue() if cam else (up.getvalue() if up else None)
     if img_bytes and st.button("Analyser", type="primary", use_container_width=True):
-        with st.spinner("Analyse en cours..."):
+        with st.spinner("Analyse..."):
             rep=ask_groq("Explique cet exercice etape par etape", img_bytes)
             st.session_state.messages+=[{"role":"user","content":"📸 Photo"},{"role":"assistant","content":rep}]
             st.rerun()
@@ -138,6 +139,7 @@ with st.expander("📸 Photo devoir"):
 prompt=st.chat_input(f"Question niveau {st.session_state.classe}...")
 if prompt:
     st.session_state.messages.append({"role":"user","content":prompt})
-    rep=ask_groq(prompt)
+    with st.spinner("Angel reflechit..."):
+        rep=ask_groq(prompt)
     st.session_state.messages.append({"role":"assistant","content":rep})
     st.rerun()
