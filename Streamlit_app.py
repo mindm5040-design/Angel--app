@@ -5,9 +5,8 @@ import time
 import re
 import json
 import uuid
+import html
 import io
-import hashlib
-
 
 # ============================================================
 # CONFIGURATION
@@ -20,13 +19,11 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-
 # ============================================================
 # CSS
 # ============================================================
 
-st.markdown(
-    """
+st.markdown("""
 <style>
 
 #MainMenu,
@@ -43,18 +40,11 @@ header {
 html,
 body,
 [class*="css"] {
-    font-family:
-        Inter,
-        -apple-system,
-        BlinkMacSystemFont,
-        "Segoe UI",
-        sans-serif;
+    font-family: Inter, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", sans-serif;
 }
 
-
-/* ============================================================
-   SIDEBAR
-============================================================ */
+/* SIDEBAR */
 
 section[data-testid="stSidebar"] {
     background: #171717 !important;
@@ -62,7 +52,7 @@ section[data-testid="stSidebar"] {
 }
 
 section[data-testid="stSidebar"] > div {
-    padding: 0.7rem 0.65rem;
+    padding: 0.7rem 0.65rem 0.8rem;
 }
 
 .lyra-brand {
@@ -73,33 +63,37 @@ section[data-testid="stSidebar"] > div {
 }
 
 .lyra-logo {
-    width: 34px;
-    height: 34px;
-    border-radius: 11px;
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+
     display: flex;
     align-items: center;
     justify-content: center;
+
     background: linear-gradient(
         135deg,
         #8b5cf6,
         #6366f1
     );
+
     color: white;
-    font-size: 18px;
+    font-size: 17px;
+
     box-shadow:
-        0 4px 18px rgba(99, 102, 241, .25);
+        0 4px 18px rgba(99,102,241,.25);
 }
 
 .lyra-brand-name {
     color: #f5f5f5;
     font-weight: 650;
-    font-size: 17px;
+    font-size: 16px;
 }
 
 .lyra-brand-sub {
     color: #8e8e8e;
     font-size: 10px;
-    margin-top: 2px;
+    margin-top: 1px;
 }
 
 section[data-testid="stSidebar"] button {
@@ -126,6 +120,7 @@ section[data-testid="stSidebar"] button:hover {
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
+
     font-size: 13px !important;
     padding: 8px 10px !important;
 }
@@ -143,21 +138,22 @@ section[data-testid="stSidebar"] button:hover {
     padding-top: 12px;
 }
 
-
-/* ============================================================
-   TOP BAR
-============================================================ */
+/* TOPBAR */
 
 .lyra-topbar {
     height: 58px;
+
     display: flex;
     align-items: center;
     justify-content: space-between;
+
     padding: 0 20px;
+
     position: sticky;
     top: 0;
     z-index: 10;
-    background: rgba(33, 33, 33, .92);
+
+    background: rgba(33,33,33,.92);
     backdrop-filter: blur(12px);
 }
 
@@ -172,31 +168,29 @@ section[data-testid="stSidebar"] button:hover {
     font-weight: 400;
 }
 
-
-/* ============================================================
-   CHAT
-============================================================ */
+/* CHAT */
 
 div[data-testid="stChatMessage"] {
     background: transparent !important;
     border: none !important;
+    border-radius: 0 !important;
+
     padding: 20px 0 !important;
     margin: 0 auto !important;
+
     max-width: 820px !important;
 }
 
 div[data-testid="stChatMessage"] p,
 div[data-testid="stChatMessage"] li {
-    font-size: var(--lyra-font-size, 15.5px) !important;
-    line-height: 1.75 !important;
-    color: #ececec !important;
-}
 
-div[data-testid="stChatMessage"] code {
-    font-family:
-        "SFMono-Regular",
-        Consolas,
-        monospace !important;
+    font-family: Inter, sans-serif !important;
+
+    font-size: 15.5px !important;
+
+    line-height: 1.75 !important;
+
+    color: #ececec !important;
 }
 
 div[data-testid="stChatMessage"] pre {
@@ -204,44 +198,53 @@ div[data-testid="stChatMessage"] pre {
     border: 1px solid #3a3a3a !important;
 }
 
-
-/* ============================================================
-   WELCOME
-============================================================ */
+/* WELCOME */
 
 .lyra-welcome {
     min-height: 55vh;
+
     display: flex;
     flex-direction: column;
+
     align-items: center;
     justify-content: center;
+
     text-align: center;
+
     padding: 50px 20px;
 }
 
 .lyra-welcome-logo {
-    width: 60px;
-    height: 60px;
+    width: 58px;
+    height: 58px;
+
     border-radius: 18px;
+
     background: linear-gradient(
         135deg,
         #8b5cf6,
         #6366f1
     );
+
     display: flex;
     align-items: center;
     justify-content: center;
+
     color: white;
-    font-size: 29px;
+    font-size: 28px;
+
     margin-bottom: 22px;
+
     box-shadow:
-        0 10px 35px rgba(99, 102, 241, .25);
+        0 10px 35px rgba(99,102,241,.25);
 }
 
 .lyra-welcome h1 {
     font-size: 29px;
     color: #f5f5f5;
+
     margin: 0 0 8px;
+
     font-weight: 600;
 }
 
@@ -251,82 +254,83 @@ div[data-testid="stChatMessage"] pre {
     margin: 0;
 }
 
-
-/* ============================================================
-   CHAT INPUT
-============================================================ */
+/* CHAT INPUT */
 
 div[data-testid="stChatInput"] {
-    max-width: 820px !important;
-    margin: 0 auto !important;
-    background: #2f2f2f !important;
-    border: 1px solid #444 !important;
-    border-radius: 26px !important;
-    box-shadow:
-        0 5px 30px rgba(0, 0, 0, .20) !important;
-}
 
-div[data-testid="stChatInput"]:focus-within {
-    border-color: #5c5c5c !important;
+    max-width: 820px !important;
+
+    margin: 0 auto !important;
+
+    background: #2f2f2f !important;
+
+    border: 1px solid #444 !important;
+
+    border-radius: 26px !important;
+
+    box-shadow:
+        0 5px 30px rgba(0,0,0,.20) !important;
 }
 
 div[data-testid="stChatInput"] textarea {
     color: #f5f5f5 !important;
     background: transparent !important;
+
     font-size: 15px !important;
 }
 
-div[data-testid="stChatInput"] textarea::placeholder {
+div[data-testid="stChatInput"]
+textarea::placeholder {
     color: #9a9a9a !important;
 }
 
-
-/* ============================================================
-   PANELS
-============================================================ */
+/* WARNINGS */
 
 .lyra-warning {
     background: #2d2414;
+
     border: 1px solid #6b531d;
+
     border-radius: 10px;
+
     padding: 11px 13px;
+
     color: #f5d48a;
+
     font-size: 12px;
+
     margin-bottom: 12px;
 }
 
 .lyra-crisis {
     background: #321919;
+
     border: 1px solid #713333;
+
     border-radius: 12px;
+
     padding: 15px;
+
     color: #fecaca;
+
     font-size: 14px;
+
     line-height: 1.6;
 }
 
-.tool-label {
-    color: #aaa;
-    font-size: 12px;
-    margin: 7px 3px 4px;
-}
-
-
-/* ============================================================
-   FOOTER
-============================================================ */
+/* FOOTER */
 
 .lyra-footer {
     text-align: center;
+
     color: #777;
+
     font-size: 11px;
+
     padding: 12px 0 22px;
 }
 
-
-/* ============================================================
-   MOBILE
-============================================================ */
+/* MOBILE */
 
 @media (max-width: 768px) {
 
@@ -354,9 +358,7 @@ div[data-testid="stChatInput"] textarea::placeholder {
 }
 
 </style>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
 
 
 # ============================================================
@@ -393,40 +395,18 @@ if "font_size" not in st.session_state:
     st.session_state.font_size = "Normale"
 
 
-if "processed_audio" not in st.session_state:
-    st.session_state.processed_audio = ""
+# ============================================================
+# API
+# ============================================================
 
-
-if "processed_image" not in st.session_state:
-    st.session_state.processed_image = ""
+KEY = st.secrets.get(
+    "GROQ_API_KEY",
+    ""
+).strip()
 
 
 # ============================================================
-# API KEY
-# ============================================================
-
-try:
-    KEY = st.secrets.get("GROQ_API_KEY", "").strip()
-except Exception:
-    KEY = ""
-
-
-# ============================================================
-# MODÈLES GROQ
-# ============================================================
-
-TEXT_MODEL = "openai/gpt-oss-20b"
-
-VISION_MODEL = (
-    "meta-llama/"
-    "llama-4-scout-17b-16e-instruct"
-)
-
-AUDIO_MODEL = "whisper-large-v3-turbo"
-
-
-# ============================================================
-# DONNÉES PÉDAGOGIQUES
+# DONNÉES SCOLAIRES
 # ============================================================
 
 CYCLES = {
@@ -458,43 +438,43 @@ CYCLES = {
 PROGRAMMES = {
 
     "6e":
-        "fractions, décimaux, géométrie, calcul",
+        "bases fractions, décimaux, géométrie simple",
 
     "5e":
-        "fractions, proportionnalité, géométrie",
+        "fractions, proportionnalité",
 
     "4e":
-        "Pythagore, Thalès, équations, calcul",
+        "Pythagore, Thalès, équations",
 
     "3e":
-        "fonctions, racines carrées, équations, Brevet",
+        "fonctions, racine carrée, Brevet",
 
     "Seconde":
-        "fonctions, vecteurs, équations, statistiques",
+        "fonctions, vecteurs",
 
     "Première":
-        "dérivées, suites, probabilités, fonctions",
+        "dérivées, suites",
 
     "Terminale":
-        "limites, dérivées, intégrales, probabilités, Bac",
+        "limites, intégrales, Bac",
 
     "Licence 1":
-        "analyse, algèbre linéaire, probabilités",
+        "analyse réelle, algèbre linéaire",
 
     "Licence 2":
-        "analyse avancée, algèbre, statistiques",
+        "analyse avancée",
 
     "Licence 3":
-        "topologie, analyse, algèbre avancée",
+        "topologie",
 
     "Master 1":
-        "mathématiques avancées, recherche",
+        "master recherche",
 
     "Master 2":
-        "mathématiques avancées, recherche",
+        "expert",
 
     "Doctorat":
-        "recherche scientifique et raisonnement avancé"
+        "recherche doctorale"
 }
 
 
@@ -517,22 +497,21 @@ def current_messages():
 
 def set_conv_title_from_first_message(text):
 
-    conversation = st.session_state.conversations[
+    conv = st.session_state.conversations[
         st.session_state.current_conv
     ]
 
-    if conversation["title"] == "Nouvelle conversation":
+    if conv["title"] == "Nouvelle conversation":
 
-        clean = (
-            text
-            .strip()
-            .replace("\n", " ")
+        clean = text.strip().replace(
+            "\n",
+            " "
         )
 
-        if len(clean) > 42:
-            clean = clean[:42] + "…"
-
-        conversation["title"] = clean
+        conv["title"] = (
+            clean[:42]
+            + ("…" if len(clean) > 42 else "")
+        )
 
 
 def new_conversation():
@@ -563,7 +542,9 @@ CRISIS_PATTERNS = [
 
     r"\bscarification",
 
-    r"\bplus envie de vivre\b"
+    r"\bplus envie de vivre\b",
+
+    r"\bharc[eè]l"
 ]
 
 
@@ -572,7 +553,10 @@ def detect_crisis(text):
     text = text.lower()
 
     return any(
-        re.search(pattern, text)
+        re.search(
+            pattern,
+            text
+        )
         for pattern in CRISIS_PATTERNS
     )
 
@@ -580,47 +564,49 @@ def detect_crisis(text):
 CRISIS_MESSAGE = """
 Ce que tu traverses semble difficile, et ça compte.
 
-Je suis une IA pédagogique et je ne suis pas la bonne
-ressource pour gérer une situation de crise.
+Je suis une IA pédagogique et je ne suis pas la bonne ressource
+pour gérer une situation de crise.
 
-Le plus important est de contacter une personne réelle
-capable de t'aider immédiatement.
+Le plus important est de contacter une personne réelle capable
+de t'aider immédiatement.
 
-Si tu es en danger immédiat, contacte les services
-d'urgence de ton pays ou demande directement de l'aide
-à une personne de confiance.
+Si tu es en danger immédiat, contacte les services d'urgence
+de ton pays ou demande directement de l'aide à un adulte
+de confiance.
 
 Tu n'as pas à gérer ça seul(e).
 """
 
 
 PRIVACY_NOTE = (
-    "L'historique est conservé dans la session Streamlit. "
-    "Les messages envoyés à LYRA sont transmis à Groq "
-    "pour générer les réponses."
+    "LYRA conserve l'historique dans la session Streamlit. "
+    "Les messages envoyés au modèle sont transmis au fournisseur "
+    "d'IA configuré pour obtenir les réponses."
 )
 
 
 # ============================================================
-# PROMPT SYSTÈME
+# PROMPT
 # ============================================================
 
 def system_prompt(niveau, cycle):
 
-    programme = PROGRAMMES.get(
+    prog = PROGRAMMES.get(
         niveau,
         ""
     )
 
-    mineur_context = ""
+    contexte_mineur = ""
 
     if cycle in MINEUR_CYCLES:
 
-        mineur_context = """
+        contexte_mineur = """
 L'élève est probablement mineur.
-Adapte ton langage à son âge.
-Évite tout contenu sexuel explicite,
-violent ou lié aux substances.
+
+Garde donc les réponses adaptées à son âge.
+
+Ne développe pas de contenu sexuel, violent
+ou lié aux substances.
 """
 
 
@@ -630,49 +616,45 @@ Tu es LYRA, une assistante pédagogique polyvalente.
 L'élève est en {cycle}, niveau {niveau}.
 
 Programme de référence :
-{programme}
 
-OBJECTIF :
-
-Aider l'élève à comprendre et progresser,
-pas simplement lui donner des réponses.
+{prog}
 
 RÈGLES :
 
-1. Explique clairement les raisonnements.
+1. Tu es avant tout une tutrice pédagogique.
 
-2. Pour les exercices, donne les étapes.
+2. Tu peux répondre aux questions générales hors programme
+si elles sont appropriées.
 
-3. Ne donne pas uniquement le résultat final.
+3. Pour les exercices scolaires, explique le raisonnement
+étape par étape.
 
-4. Utilise des exemples simples lorsque nécessaire.
+4. Ne donne pas uniquement le résultat final.
 
-5. Vérifie tes calculs avant de répondre.
+5. Si l'élève semble apprendre, privilégie les indices,
+les explications et les exemples.
 
-6. Si une information est incertaine,
-   indique-le clairement.
+6. Vérifie les calculs avant de répondre.
 
-7. Ne prétends jamais être humaine.
+7. Si tu n'es pas sûre, indique ton incertitude.
 
-8. Ne crée pas de dépendance affective.
+8. Ne prétends jamais être humaine.
 
-9. Reste respectueuse et pédagogique.
+9. Reste chaleureuse mais ne crée pas de dépendance affective.
 
-10. Pour les sujets sensibles ou controversés,
-    reste neutre et factuelle.
+10. Pour les sujets politiques, religieux ou sociétaux,
+reste neutre et présente les faits.
 
 11. Refuse les demandes dangereuses ou illégales.
 
 12. Ne prétends jamais avoir accès à une information
-    que tu n'as pas.
+que tu n'as pas.
 
-13. Réponds en français sauf si l'élève demande
-    explicitement une autre langue.
+{contexte_mineur}
 
-14. Utilise Markdown lorsque cela améliore
-    la compréhension.
+Réponds en français clair et naturel.
 
-{mineur_context}
+Utilise Markdown lorsque cela améliore la compréhension.
 """
 
 
@@ -699,11 +681,15 @@ def build_messages(
 
     ]
 
+
     history = current_messages()[-12:]
+
 
     for message in history:
 
-        role = message.get("role")
+        role = message.get(
+            "role"
+        )
 
         if role not in {
             "user",
@@ -711,19 +697,22 @@ def build_messages(
         }:
             continue
 
+
         content = message.get(
             "content",
             ""
         )
 
+
         if content.startswith(
-            "📸 [Photo d'exercice]"
+            "📸 [Photo"
         ):
 
             content = (
                 "L'utilisateur a envoyé "
                 "une photo d'exercice."
             )
+
 
         messages.append({
 
@@ -736,12 +725,12 @@ def build_messages(
 
     user_content = user_question
 
+
     if extra_context:
 
         user_content += (
-            "\n\n"
-            "[Contexte du document joint]\n"
-            + extra_context[:12000]
+            "\n\n[Contexte du document joint]\n"
+            + extra_context[:8000]
         )
 
 
@@ -768,6 +757,7 @@ def cooldown_ok():
 
     now = time.time()
 
+
     if (
         now
         - st.session_state.last_call
@@ -776,13 +766,14 @@ def cooldown_ok():
 
         return False
 
+
     st.session_state.last_call = now
 
     return True
 
 
 # ============================================================
-# STREAMING TEXTE
+# GROQ — TEXTE
 # ============================================================
 
 def stream_text(
@@ -796,8 +787,8 @@ def stream_text(
 
         yield (
             "⚠️ **Clé API manquante.**\n\n"
-            "Ajoute `GROQ_API_KEY` dans les "
-            "Secrets de ton application Streamlit."
+            "Configure `GROQ_API_KEY` dans les secrets "
+            "Streamlit."
         )
 
         return
@@ -834,12 +825,13 @@ def stream_text(
 
                 "Content-Type":
                     "application/json"
+
             },
 
             json={
 
                 "model":
-                    TEXT_MODEL,
+                    "openai/gpt-oss-20b",
 
                 "messages":
                     messages,
@@ -847,14 +839,12 @@ def stream_text(
                 "temperature":
                     0.5,
 
-                "max_completion_tokens":
-                    4096,
-
                 "stream":
                     True
+
             },
 
-            timeout=90,
+            timeout=60,
 
             stream=True
 
@@ -865,32 +855,26 @@ def stream_text(
 
                 try:
 
-                    error_data = response.json()
-
-                    error_message = (
-                        error_data
+                    detail = (
+                        response
+                        .json()
                         .get("error", {})
-                        .get("message")
+                        .get(
+                            "message",
+                            response.text[:300]
+                        )
                     )
 
-                except Exception:
+                except ValueError:
 
-                    error_message = None
+                    detail = response.text[:300]
 
 
-                if error_message:
-
-                    yield (
-                        "⚠️ **Erreur Groq :**\n\n"
-                        + str(error_message)
-                    )
-
-                else:
-
-                    yield (
-                        "⚠️ **Erreur API Groq :** "
-                        f"HTTP {response.status_code}"
-                    )
+                yield (
+                    f"⚠️ Erreur API Groq "
+                    f"({response.status_code}) : "
+                    f"{detail}"
+                )
 
                 return
 
@@ -907,7 +891,8 @@ def stream_text(
                 ):
 
                     line = line.decode(
-                        "utf-8"
+                        "utf-8",
+                        errors="ignore"
                     )
 
 
@@ -918,10 +903,11 @@ def stream_text(
                     continue
 
 
-                payload = line[6:]
+                payload = line[6:].strip()
 
 
-                if payload.strip() == "[DONE]":
+                if payload == "[DONE]":
+
                     break
 
 
@@ -937,19 +923,22 @@ def stream_text(
                         []
                     )
 
-                    if not choices:
-                        continue
+
+                    if choices:
+
+                        delta = (
+                            choices[0]
+                            .get("delta", {})
+                            .get(
+                                "content",
+                                ""
+                            )
+                        )
 
 
-                    delta = (
-                        choices[0]
-                        .get("delta", {})
-                        .get("content", "")
-                    )
+                        if delta:
 
-
-                    if delta:
-                        yield delta
+                            yield delta
 
 
                 except (
@@ -965,21 +954,22 @@ def stream_text(
     except requests.exceptions.Timeout:
 
         yield (
-            "⏱️ LYRA met trop de temps à répondre. "
-            "Réessaie dans un instant."
+            "⏱️ LYRA met trop de temps "
+            "à répondre. Réessaie."
         )
 
 
     except requests.exceptions.RequestException as error:
 
         yield (
-            "⚠️ Problème de connexion avec Groq : "
+            f"⚠️ Problème de connexion "
+            f"avec LYRA : "
             f"{type(error).__name__}"
         )
 
 
 # ============================================================
-# VISION
+# GROQ — VISION
 # ============================================================
 
 def call_vision(
@@ -1022,19 +1012,103 @@ def call_vision(
 
                 "Content-Type":
                     "application/json"
+
             },
 
             json={
 
                 "model":
-                    VISION_MODEL,
-
-                "temperature":
-                    0.2,
-
-                "max_completion_tokens":
-                    4096,
+                    "meta-llama/llama-4-scout-17b-16e-instruct",
 
                 "messages": [
 
-                 
+                    {
+
+                        "role":
+                            "system",
+
+                        "content":
+                            f"""
+Tu es LYRA, tutrice pédagogique
+pour un élève de {niveau}.
+
+Analyse l'exercice scolaire
+présent dans l'image.
+
+Lis attentivement les nombres,
+symboles et consignes.
+
+Si quelque chose est illisible,
+dis-le au lieu d'inventer.
+
+Explique le raisonnement
+étape par étape.
+"""
+
+                    },
+
+                    {
+
+                        "role":
+                            "user",
+
+                        "content": [
+
+                            {
+
+                                "type":
+                                    "text",
+
+                                "text":
+                                    question
+                                    or
+                                    "Résous cet exercice "
+                                    "et explique la méthode."
+
+                            },
+
+                            {
+
+                                "type":
+                                    "image_url",
+
+                                "image_url": {
+
+                                    "url":
+                                        "data:image/jpeg;base64,"
+                                        + encoded
+
+                                }
+
+                            }
+
+                        ]
+
+                    }
+
+                ]
+
+            },
+
+            timeout=60
+
+        )
+
+
+        if not response.ok:
+
+            try:
+
+                detail = (
+                    response
+                    .json()
+                    .get("error", {})
+                    .get(
+                        "message",
+                        response.text[:300]
+                    )
+                )
+
+            except ValueError:
+
+                detail = response.text
