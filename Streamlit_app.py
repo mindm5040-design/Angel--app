@@ -5,7 +5,9 @@ import time
 import re
 import json
 import uuid
-import html
+import io
+import hashlib
+
 
 # ============================================================
 # CONFIGURATION
@@ -18,15 +20,14 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+
 # ============================================================
-# CSS — INTERFACE TYPE CHATGPT
+# CSS
 # ============================================================
 
-st.markdown("""
+st.markdown(
+    """
 <style>
-/* ----------------------------------------------------------
-   RESET
----------------------------------------------------------- */
 
 #MainMenu,
 footer,
@@ -39,14 +40,21 @@ header {
     color: #ececec;
 }
 
-html, body, [class*="css"] {
-    font-family: Inter, -apple-system, BlinkMacSystemFont,
-        "Segoe UI", sans-serif;
+html,
+body,
+[class*="css"] {
+    font-family:
+        Inter,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
 }
 
-/* ----------------------------------------------------------
+
+/* ============================================================
    SIDEBAR
----------------------------------------------------------- */
+============================================================ */
 
 section[data-testid="stSidebar"] {
     background: #171717 !important;
@@ -54,49 +62,51 @@ section[data-testid="stSidebar"] {
 }
 
 section[data-testid="stSidebar"] > div {
-    padding: 0.7rem 0.65rem 0.8rem 0.65rem;
+    padding: 0.7rem 0.65rem;
 }
 
 .lyra-brand {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 8px 10px 18px 10px;
+    padding: 8px 10px 18px;
 }
 
 .lyra-logo {
-    width: 32px;
-    height: 32px;
-    border-radius: 10px;
+    width: 34px;
+    height: 34px;
+    border-radius: 11px;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, #8b5cf6, #6366f1);
+    background: linear-gradient(
+        135deg,
+        #8b5cf6,
+        #6366f1
+    );
     color: white;
-    font-size: 17px;
-    box-shadow: 0 4px 18px rgba(99,102,241,.25);
+    font-size: 18px;
+    box-shadow:
+        0 4px 18px rgba(99, 102, 241, .25);
 }
 
 .lyra-brand-name {
     color: #f5f5f5;
     font-weight: 650;
-    font-size: 16px;
+    font-size: 17px;
 }
 
 .lyra-brand-sub {
     color: #8e8e8e;
     font-size: 10px;
-    margin-top: 1px;
+    margin-top: 2px;
 }
-
-/* sidebar buttons */
 
 section[data-testid="stSidebar"] button {
     border-radius: 9px !important;
     border: 0 !important;
     background: transparent !important;
     color: #d4d4d4 !important;
-    transition: background .15s ease;
 }
 
 section[data-testid="stSidebar"] button:hover {
@@ -107,15 +117,9 @@ section[data-testid="stSidebar"] button:hover {
 .new-chat-btn button {
     background: #2a2a2a !important;
     border: 1px solid #3b3b3b !important;
-    color: #fff !important;
+    color: white !important;
     height: 42px !important;
 }
-
-.new-chat-btn button:hover {
-    background: #333 !important;
-}
-
-/* conversation list */
 
 .conv-btn button {
     text-align: left !important;
@@ -133,17 +137,16 @@ section[data-testid="stSidebar"] button:hover {
     padding: 16px 10px 6px;
 }
 
-/* bottom sidebar */
-
 .sidebar-bottom {
     border-top: 1px solid #303030;
     margin-top: 16px;
     padding-top: 12px;
 }
 
-/* ----------------------------------------------------------
-   MAIN HEADER
----------------------------------------------------------- */
+
+/* ============================================================
+   TOP BAR
+============================================================ */
 
 .lyra-topbar {
     height: 58px;
@@ -154,7 +157,7 @@ section[data-testid="stSidebar"] button:hover {
     position: sticky;
     top: 0;
     z-index: 10;
-    background: rgba(33,33,33,.92);
+    background: rgba(33, 33, 33, .92);
     backdrop-filter: blur(12px);
 }
 
@@ -169,14 +172,14 @@ section[data-testid="stSidebar"] button:hover {
     font-weight: 400;
 }
 
-/* ----------------------------------------------------------
+
+/* ============================================================
    CHAT
----------------------------------------------------------- */
+============================================================ */
 
 div[data-testid="stChatMessage"] {
     background: transparent !important;
     border: none !important;
-    border-radius: 0 !important;
     padding: 20px 0 !important;
     margin: 0 auto !important;
     max-width: 820px !important;
@@ -184,14 +187,16 @@ div[data-testid="stChatMessage"] {
 
 div[data-testid="stChatMessage"] p,
 div[data-testid="stChatMessage"] li {
-    font-family: Inter, sans-serif !important;
     font-size: var(--lyra-font-size, 15.5px) !important;
     line-height: 1.75 !important;
     color: #ececec !important;
 }
 
 div[data-testid="stChatMessage"] code {
-    font-family: "SFMono-Regular", Consolas, monospace !important;
+    font-family:
+        "SFMono-Regular",
+        Consolas,
+        monospace !important;
 }
 
 div[data-testid="stChatMessage"] pre {
@@ -199,15 +204,10 @@ div[data-testid="stChatMessage"] pre {
     border: 1px solid #3a3a3a !important;
 }
 
-/* avatar */
 
-div[data-testid="stChatMessage"] img {
-    border-radius: 50%;
-}
-
-/* ----------------------------------------------------------
-   EMPTY STATE
----------------------------------------------------------- */
+/* ============================================================
+   WELCOME
+============================================================ */
 
 .lyra-welcome {
     min-height: 55vh;
@@ -220,17 +220,22 @@ div[data-testid="stChatMessage"] img {
 }
 
 .lyra-welcome-logo {
-    width: 58px;
-    height: 58px;
+    width: 60px;
+    height: 60px;
     border-radius: 18px;
-    background: linear-gradient(135deg, #8b5cf6, #6366f1);
+    background: linear-gradient(
+        135deg,
+        #8b5cf6,
+        #6366f1
+    );
     display: flex;
     align-items: center;
     justify-content: center;
     color: white;
-    font-size: 28px;
+    font-size: 29px;
     margin-bottom: 22px;
-    box-shadow: 0 10px 35px rgba(99,102,241,.25);
+    box-shadow:
+        0 10px 35px rgba(99, 102, 241, .25);
 }
 
 .lyra-welcome h1 {
@@ -246,9 +251,10 @@ div[data-testid="stChatMessage"] img {
     margin: 0;
 }
 
-/* ----------------------------------------------------------
+
+/* ============================================================
    CHAT INPUT
----------------------------------------------------------- */
+============================================================ */
 
 div[data-testid="stChatInput"] {
     max-width: 820px !important;
@@ -256,7 +262,8 @@ div[data-testid="stChatInput"] {
     background: #2f2f2f !important;
     border: 1px solid #444 !important;
     border-radius: 26px !important;
-    box-shadow: 0 5px 30px rgba(0,0,0,.20) !important;
+    box-shadow:
+        0 5px 30px rgba(0, 0, 0, .20) !important;
 }
 
 div[data-testid="stChatInput"]:focus-within {
@@ -273,22 +280,10 @@ div[data-testid="stChatInput"] textarea::placeholder {
     color: #9a9a9a !important;
 }
 
-/* ----------------------------------------------------------
-   CONTROL BAR
----------------------------------------------------------- */
 
-.lyra-controls {
-    max-width: 820px;
-    margin: 8px auto 0 auto;
-    display: flex;
-    justify-content: space-between;
-    color: #777;
-    font-size: 11px;
-}
-
-/* ----------------------------------------------------------
-   WARNINGS
----------------------------------------------------------- */
+/* ============================================================
+   PANELS
+============================================================ */
 
 .lyra-warning {
     background: #2d2414;
@@ -310,19 +305,16 @@ div[data-testid="stChatInput"] textarea::placeholder {
     line-height: 1.6;
 }
 
-/* ----------------------------------------------------------
-   FILE / CAMERA / AUDIO PANELS
----------------------------------------------------------- */
-
 .tool-label {
     color: #aaa;
     font-size: 12px;
     margin: 7px 3px 4px;
 }
 
-/* ----------------------------------------------------------
+
+/* ============================================================
    FOOTER
----------------------------------------------------------- */
+============================================================ */
 
 .lyra-footer {
     text-align: center;
@@ -331,9 +323,10 @@ div[data-testid="stChatInput"] textarea::placeholder {
     padding: 12px 0 22px;
 }
 
-/* ----------------------------------------------------------
+
+/* ============================================================
    MOBILE
----------------------------------------------------------- */
+============================================================ */
 
 @media (max-width: 768px) {
 
@@ -359,44 +352,98 @@ div[data-testid="stChatInput"] textarea::placeholder {
         padding: 0 10px;
     }
 }
+
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
+
 
 # ============================================================
 # SESSION STATE
 # ============================================================
 
 if "conversations" not in st.session_state:
+
     first_id = str(uuid.uuid4())
+
     st.session_state.conversations = {
         first_id: {
             "title": "Nouvelle conversation",
             "messages": []
         }
     }
+
     st.session_state.current_conv = first_id
+
 
 if "niveau" not in st.session_state:
     st.session_state.niveau = "Terminale"
 
+
 if "cycle" not in st.session_state:
     st.session_state.cycle = "Lycée"
+
 
 if "last_call" not in st.session_state:
     st.session_state.last_call = 0.0
 
+
 if "font_size" not in st.session_state:
     st.session_state.font_size = "Normale"
 
+
+if "processed_audio" not in st.session_state:
+    st.session_state.processed_audio = ""
+
+
+if "processed_image" not in st.session_state:
+    st.session_state.processed_image = ""
+
+
 # ============================================================
-# DONNÉES
+# API KEY
 # ============================================================
 
-KEY = st.secrets.get("GROQ_API_KEY", "").strip()
+try:
+    KEY = st.secrets.get("GROQ_API_KEY", "").strip()
+except Exception:
+    KEY = ""
+
+
+# ============================================================
+# MODÈLES GROQ
+# ============================================================
+
+TEXT_MODEL = "openai/gpt-oss-20b"
+
+VISION_MODEL = (
+    "meta-llama/"
+    "llama-4-scout-17b-16e-instruct"
+)
+
+AUDIO_MODEL = "whisper-large-v3-turbo"
+
+
+# ============================================================
+# DONNÉES PÉDAGOGIQUES
+# ============================================================
 
 CYCLES = {
-    "Collège": ["6e", "5e", "4e", "3e"],
-    "Lycée": ["Seconde", "Première", "Terminale"],
+
+    "Collège": [
+        "6e",
+        "5e",
+        "4e",
+        "3e"
+    ],
+
+    "Lycée": [
+        "Seconde",
+        "Première",
+        "Terminale"
+    ],
+
     "Université": [
         "Licence 1",
         "Licence 2",
@@ -407,49 +454,89 @@ CYCLES = {
     ]
 }
 
+
 PROGRAMMES = {
-    "6e": "bases fractions, décimaux, géométrie simple",
-    "5e": "fractions, proportionnalité",
-    "4e": "Pythagore, Thalès, équations",
-    "3e": "fonctions, racine carrée, Brevet",
-    "Seconde": "fonctions, vecteurs",
-    "Première": "dérivées, suites",
-    "Terminale": "limites, intégrales, Bac",
-    "Licence 1": "analyse réelle, algèbre linéaire",
-    "Licence 2": "analyse avancée",
-    "Licence 3": "topologie",
-    "Master 1": "master recherche",
-    "Master 2": "expert",
-    "Doctorat": "recherche doctorale"
+
+    "6e":
+        "fractions, décimaux, géométrie, calcul",
+
+    "5e":
+        "fractions, proportionnalité, géométrie",
+
+    "4e":
+        "Pythagore, Thalès, équations, calcul",
+
+    "3e":
+        "fonctions, racines carrées, équations, Brevet",
+
+    "Seconde":
+        "fonctions, vecteurs, équations, statistiques",
+
+    "Première":
+        "dérivées, suites, probabilités, fonctions",
+
+    "Terminale":
+        "limites, dérivées, intégrales, probabilités, Bac",
+
+    "Licence 1":
+        "analyse, algèbre linéaire, probabilités",
+
+    "Licence 2":
+        "analyse avancée, algèbre, statistiques",
+
+    "Licence 3":
+        "topologie, analyse, algèbre avancée",
+
+    "Master 1":
+        "mathématiques avancées, recherche",
+
+    "Master 2":
+        "mathématiques avancées, recherche",
+
+    "Doctorat":
+        "recherche scientifique et raisonnement avancé"
 }
 
-MINEUR_CYCLES = {"Collège", "Lycée"}
+
+MINEUR_CYCLES = {
+    "Collège",
+    "Lycée"
+}
+
 
 # ============================================================
 # CONVERSATIONS
 # ============================================================
 
 def current_messages():
+
     return st.session_state.conversations[
         st.session_state.current_conv
     ]["messages"]
 
 
 def set_conv_title_from_first_message(text):
-    conv = st.session_state.conversations[
+
+    conversation = st.session_state.conversations[
         st.session_state.current_conv
     ]
 
-    if conv["title"] == "Nouvelle conversation":
-        clean = text.strip().replace("\n", " ")
-        conv["title"] = (
-            clean[:42] + "…"
-            if len(clean) > 42
-            else clean
+    if conversation["title"] == "Nouvelle conversation":
+
+        clean = (
+            text
+            .strip()
+            .replace("\n", " ")
         )
+
+        if len(clean) > 42:
+            clean = clean[:42] + "…"
+
+        conversation["title"] = clean
 
 
 def new_conversation():
+
     new_id = str(uuid.uuid4())
 
     st.session_state.conversations[new_id] = {
@@ -459,23 +546,31 @@ def new_conversation():
 
     st.session_state.current_conv = new_id
 
+
 # ============================================================
 # SÉCURITÉ
 # ============================================================
 
 CRISIS_PATTERNS = [
+
     r"\bsuicid",
+
     r"\bme tuer\b",
+
     r"\bme faire du mal\b",
+
     r"\benvie de mourir\b",
+
     r"\bscarification",
-    r"\bplus envie de vivre\b",
-    r"\bharc[eè]l"
+
+    r"\bplus envie de vivre\b"
 ]
 
 
-def detect_crisis(text: str) -> bool:
+def detect_crisis(text):
+
     text = text.lower()
+
     return any(
         re.search(pattern, text)
         for pattern in CRISIS_PATTERNS
@@ -485,38 +580,49 @@ def detect_crisis(text: str) -> bool:
 CRISIS_MESSAGE = """
 Ce que tu traverses semble difficile, et ça compte.
 
-Je suis une IA pédagogique et je ne suis pas la bonne ressource
-pour gérer une situation de crise. Le plus important est de
-contacter une personne réelle capable de t'aider immédiatement.
+Je suis une IA pédagogique et je ne suis pas la bonne
+ressource pour gérer une situation de crise.
 
-Si tu es en danger immédiat, contacte les services d'urgence
-de ton pays ou demande directement de l'aide à un adulte de confiance.
+Le plus important est de contacter une personne réelle
+capable de t'aider immédiatement.
+
+Si tu es en danger immédiat, contacte les services
+d'urgence de ton pays ou demande directement de l'aide
+à une personne de confiance.
 
 Tu n'as pas à gérer ça seul(e).
 """
 
+
 PRIVACY_NOTE = (
-    "LYRA conserve l'historique dans la session Streamlit. "
-    "Les messages envoyés au modèle sont transmis au fournisseur "
-    "d'IA configuré pour obtenir les réponses."
+    "L'historique est conservé dans la session Streamlit. "
+    "Les messages envoyés à LYRA sont transmis à Groq "
+    "pour générer les réponses."
 )
 
+
 # ============================================================
-# PROMPT
+# PROMPT SYSTÈME
 # ============================================================
 
 def system_prompt(niveau, cycle):
 
-    prog = PROGRAMMES.get(niveau, "")
+    programme = PROGRAMMES.get(
+        niveau,
+        ""
+    )
 
-    contexte_mineur = ""
+    mineur_context = ""
 
     if cycle in MINEUR_CYCLES:
-        contexte_mineur = """
+
+        mineur_context = """
 L'élève est probablement mineur.
-Garde donc les réponses adaptées à son âge.
-Ne développe pas de contenu sexuel, violent ou lié aux substances.
+Adapte ton langage à son âge.
+Évite tout contenu sexuel explicite,
+violent ou lié aux substances.
 """
+
 
     return f"""
 Tu es LYRA, une assistante pédagogique polyvalente.
@@ -524,94 +630,132 @@ Tu es LYRA, une assistante pédagogique polyvalente.
 L'élève est en {cycle}, niveau {niveau}.
 
 Programme de référence :
-{prog}
+{programme}
+
+OBJECTIF :
+
+Aider l'élève à comprendre et progresser,
+pas simplement lui donner des réponses.
 
 RÈGLES :
 
-1. Tu es avant tout une tutrice pédagogique.
+1. Explique clairement les raisonnements.
 
-2. Tu peux répondre aux questions générales hors programme
-   si elles sont appropriées.
+2. Pour les exercices, donne les étapes.
 
-3. Pour les exercices scolaires, explique le raisonnement
-   étape par étape.
+3. Ne donne pas uniquement le résultat final.
 
-4. Ne donne pas uniquement le résultat final.
+4. Utilise des exemples simples lorsque nécessaire.
 
-5. Si l'élève semble apprendre, privilégie les indices,
-   les explications et les exemples.
+5. Vérifie tes calculs avant de répondre.
 
-6. Vérifie les calculs avant de répondre.
+6. Si une information est incertaine,
+   indique-le clairement.
 
-7. Si tu n'es pas sûre, indique ton incertitude.
+7. Ne prétends jamais être humaine.
 
-8. Ne prétends jamais être humaine.
+8. Ne crée pas de dépendance affective.
 
-9. Reste chaleureuse mais ne crée pas de dépendance affective.
+9. Reste respectueuse et pédagogique.
 
-10. Pour les sujets politiques, religieux ou sociétaux,
-    reste neutre et présente les faits.
+10. Pour les sujets sensibles ou controversés,
+    reste neutre et factuelle.
 
 11. Refuse les demandes dangereuses ou illégales.
 
 12. Ne prétends jamais avoir accès à une information
     que tu n'as pas.
 
-{contexte_mineur}
+13. Réponds en français sauf si l'élève demande
+    explicitement une autre langue.
 
-Réponds en français clair et naturel.
+14. Utilise Markdown lorsque cela améliore
+    la compréhension.
 
-Utilise Markdown lorsque cela améliore la compréhension.
+{mineur_context}
 """
 
+
 # ============================================================
-# HISTORIQUE ENVOYÉ AU MODÈLE
+# HISTORIQUE
 # ============================================================
 
-def build_messages(user_question, niveau, cycle, extra_context=""):
+def build_messages(
+    user_question,
+    niveau,
+    cycle,
+    extra_context=""
+):
 
     messages = [
+
         {
             "role": "system",
-            "content": system_prompt(niveau, cycle)
+            "content": system_prompt(
+                niveau,
+                cycle
+            )
         }
+
     ]
 
-    # Garde les derniers échanges pour éviter des requêtes énormes.
     history = current_messages()[-12:]
 
     for message in history:
 
         role = message.get("role")
 
-        if role not in {"user", "assistant"}:
+        if role not in {
+            "user",
+            "assistant"
+        }:
             continue
 
-        content = message.get("content", "")
+        content = message.get(
+            "content",
+            ""
+        )
 
-        # Ne pas envoyer les métadonnées visuelles inutiles.
-        if content.startswith("📸 [Photo"):
-            content = "L'utilisateur a envoyé une photo d'exercice."
+        if content.startswith(
+            "📸 [Photo d'exercice]"
+        ):
+
+            content = (
+                "L'utilisateur a envoyé "
+                "une photo d'exercice."
+            )
 
         messages.append({
+
             "role": role,
+
             "content": content
+
         })
+
 
     user_content = user_question
 
     if extra_context:
+
         user_content += (
-            "\n\n[Contexte du document joint]\n"
-            + extra_context[:8000]
+            "\n\n"
+            "[Contexte du document joint]\n"
+            + extra_context[:12000]
         )
 
+
     messages.append({
+
         "role": "user",
+
         "content": user_content
+
     })
 
+
     return messages
+
 
 # ============================================================
 # COOLDOWN
@@ -624,14 +768,21 @@ def cooldown_ok():
 
     now = time.time()
 
-    if now - st.session_state.last_call < MIN_INTERVAL:
+    if (
+        now
+        - st.session_state.last_call
+        < MIN_INTERVAL
+    ):
+
         return False
 
     st.session_state.last_call = now
+
     return True
 
+
 # ============================================================
-# STREAMING GROQ
+# STREAMING TEXTE
 # ============================================================
 
 def stream_text(
@@ -642,18 +793,25 @@ def stream_text(
 ):
 
     if not KEY:
+
         yield (
             "⚠️ **Clé API manquante.**\n\n"
-            "Configure `GROQ_API_KEY` dans les secrets Streamlit."
+            "Ajoute `GROQ_API_KEY` dans les "
+            "Secrets de ton application Streamlit."
         )
+
         return
 
+
     if not cooldown_ok():
+
         yield (
-            "⏳ Attends un instant avant d'envoyer "
-            "une nouvelle question."
+            "⏳ Attends un instant avant "
+            "d'envoyer une nouvelle question."
         )
+
         return
+
 
     messages = build_messages(
         question,
@@ -662,62 +820,147 @@ def stream_text(
         extra_context
     )
 
+
     try:
 
         with requests.post(
+
             "https://api.groq.com/openai/v1/chat/completions",
+
             headers={
-                "Authorization": f"Bearer {KEY}",
-                "Content-Type": "application/json"
+
+                "Authorization":
+                    f"Bearer {KEY}",
+
+                "Content-Type":
+                    "application/json"
             },
+
             json={
-                "model": "openai/gpt-oss-20b",
-                "messages": messages,
-                "temperature": 0.5,
-                "stream": True
+
+                "model":
+                    TEXT_MODEL,
+
+                "messages":
+                    messages,
+
+                "temperature":
+                    0.5,
+
+                "max_completion_tokens":
+                    4096,
+
+                "stream":
+                    True
             },
-            timeout=60,
+
+            timeout=90,
+
             stream=True
+
         ) as response:
 
-            response.raise_for_status()
+
+            if not response.ok:
+
+                try:
+
+                    error_data = response.json()
+
+                    error_message = (
+                        error_data
+                        .get("error", {})
+                        .get("message")
+                    )
+
+                except Exception:
+
+                    error_message = None
+
+
+                if error_message:
+
+                    yield (
+                        "⚠️ **Erreur Groq :**\n\n"
+                        + str(error_message)
+                    )
+
+                else:
+
+                    yield (
+                        "⚠️ **Erreur API Groq :** "
+                        f"HTTP {response.status_code}"
+                    )
+
+                return
+
 
             for line in response.iter_lines():
 
                 if not line:
                     continue
 
-                if isinstance(line, bytes):
-                    line = line.decode("utf-8")
 
-                if not line.startswith("data: "):
+                if isinstance(
+                    line,
+                    bytes
+                ):
+
+                    line = line.decode(
+                        "utf-8"
+                    )
+
+
+                if not line.startswith(
+                    "data: "
+                ):
+
                     continue
 
+
                 payload = line[6:]
+
 
                 if payload.strip() == "[DONE]":
                     break
 
+
                 try:
 
-                    chunk = json.loads(payload)
+                    chunk = json.loads(
+                        payload
+                    )
+
+
+                    choices = chunk.get(
+                        "choices",
+                        []
+                    )
+
+                    if not choices:
+                        continue
+
 
                     delta = (
-                        chunk
-                        .get("choices", [{}])[0]
+                        choices[0]
                         .get("delta", {})
                         .get("content", "")
                     )
 
+
                     if delta:
                         yield delta
 
+
                 except (
+                    json.JSONDecodeError,
                     KeyError,
                     IndexError,
-                    json.JSONDecodeError
+                    TypeError
                 ):
+
                     continue
+
 
     except requests.exceptions.Timeout:
 
@@ -726,128 +969,72 @@ def stream_text(
             "Réessaie dans un instant."
         )
 
+
     except requests.exceptions.RequestException as error:
 
         yield (
-            f"⚠️ Problème de connexion avec LYRA : "
+            "⚠️ Problème de connexion avec Groq : "
             f"{type(error).__name__}"
         )
+
 
 # ============================================================
 # VISION
 # ============================================================
 
-def call_vision(question, image_bytes, niveau):
+def call_vision(
+    question,
+    image_bytes,
+    niveau
+):
 
     if not KEY:
+
         return (
             "⚠️ Clé API manquante. "
             "Configure `GROQ_API_KEY`."
         )
 
+
     if not cooldown_ok():
+
         return (
             "⏳ Attends un instant avant "
             "d'envoyer une nouvelle demande."
         )
 
+
     try:
 
         encoded = base64.b64encode(
             image_bytes
-        ).decode()
+        ).decode("utf-8")
+
 
         response = requests.post(
+
             "https://api.groq.com/openai/v1/chat/completions",
+
             headers={
-                "Authorization": f"Bearer {KEY}",
-                "Content-Type": "application/json"
+
+                "Authorization":
+                    f"Bearer {KEY}",
+
+                "Content-Type":
+                    "application/json"
             },
+
             json={
+
                 "model":
-                    "meta-llama/llama-4-scout-17b-16e-instruct",
+                    VISION_MODEL,
+
+                "temperature":
+                    0.2,
+
+                "max_completion_tokens":
+                    4096,
+
                 "messages": [
-                    {
-                        "role": "system",
-                        "content": f"""
-Tu es LYRA, tutrice pédagogique
-pour un élève de {niveau}.
 
-Analyse uniquement l'exercice scolaire
-présent dans l'image.
-
-Lis attentivement les nombres,
-symboles et consignes.
-
-Si quelque chose est illisible,
-dis-le au lieu d'inventer.
-
-Explique le raisonnement étape par étape.
-"""
-                    },
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": question
-                            },
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url":
-                                    "data:image/jpeg;base64,"
-                                    + encoded
-                                }
-                            }
-                        ]
-                    }
-                ]
-            },
-            timeout=60
-        )
-
-        response.raise_for_status()
-
-        data = response.json()
-
-        return (
-            data["choices"][0]
-            ["message"]
-            ["content"]
-        )
-
-    except requests.exceptions.RequestException as error:
-
-        return (
-            f"⚠️ Problème de connexion : "
-            f"{type(error).__name__}"
-        )
-
-    except (
-        KeyError,
-        ValueError,
-        IndexError
-    ):
-
-        return (
-            "⚠️ Impossible d'analyser cette image. "
-            "Essaie avec une photo plus nette."
-        )
-
-# ============================================================
-# TRANSCRIPTION
-# ============================================================
-
-def transcribe(audio_bytes):
-
-    if not KEY:
-        return ""
-
-    try:
-
-        files = {
-            "file": (
-                "audio.wav",
-                audio_bytes,
-                "a
+                 
