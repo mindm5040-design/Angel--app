@@ -1,4 +1,4 @@
-import streamlit as st, requests, base64, time, re
+import streamlit as st, requests, base64, time, re, json, uuid
 
 st.set_page_config(page_title="LYRA", page_icon="✨", layout="wide")
 st.markdown("""
@@ -47,23 +47,39 @@ div[data-testid="stChatInput"] {
 .lyra-footer {
     text-align:center; color:#71717a; font-size:12px; padding:1.5rem 0 0.5rem 0;
 }
+.conv-btn button {
+    text-align:left!important; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
 # CRITÈRES D'UNE BONNE IA — appliqués dans tout le fichier
-# 1. Utilité & pédagogie active   5. Neutralité & absence de biais
-# 2. Honnêteté & transparence     6. Sécurité des mineurs & contenu approprié
-# 3. Sécurité & gestion de crise  7. Anti-dépendance affective
-# 4. Confidentialité & sobriété   8. Robustesse technique & accessibilité
-# des données                    9. Traçabilité / limites clairement énoncées
+# 1. Utilité & pédagogie active     6. Sécurité des mineurs & contenu approprié
+# 2. Honnêteté & transparence       7. Anti-dépendance affective
+# 3. Sécurité & gestion de crise    8. Robustesse technique & accessibilité
+# 4. Confidentialité & sobriété     9. Limites clairement énoncées
+#    des données                   10. Expérience type ChatGPT (historique de
+# 5. Neutralité & absence de biais      conversations, réponse en flux, fichiers)
 # ---------------------------------------------------------------------------
 
-if "messages" not in st.session_state: st.session_state.messages = []
+# --- 10. Multi-conversations façon ChatGPT ---------------------------------
+if "conversations" not in st.session_state:
+    first_id = str(uuid.uuid4())
+    st.session_state.conversations = {first_id: {"title": "Nouvelle conversation", "messages": []}}
+    st.session_state.current_conv = first_id
 if "niveau" not in st.session_state: st.session_state.niveau = "Terminale"
 if "cycle" not in st.session_state: st.session_state.cycle = "Lycée"
 if "last_call" not in st.session_state: st.session_state.last_call = 0.0
 if "font_size" not in st.session_state: st.session_state.font_size = "Normale"
+
+def current_messages():
+    return st.session_state.conversations[st.session_state.current_conv]["messages"]
+
+def set_conv_title_from_first_message(text):
+    conv = st.session_state.conversations[st.session_state.current_conv]
+    if conv["title"] == "Nouvelle conversation":
+        conv["title"] = (text[:40] + "…") if len(text) > 40 else text
 
 KEY = st.secrets.get("GROQ_API_KEY", "").strip()
 CYCLES = {
@@ -80,9 +96,6 @@ PROGRAMMES = {
 MINEUR_CYCLES = {"Collège", "Lycée"}  # utilisateurs probablement mineurs -> ton et contenu adaptés
 
 # --- 3. Sécurité & gestion de crise -----------------------------------------
-# Détection simple de signaux de détresse : LYRA ne doit jamais improviser
-# une réponse de soutien psychologique. Elle redirige systématiquement vers
-# des adultes de confiance et des ressources d'aide.
 CRISIS_PATTERNS = [
     r"\bsuicid", r"\bme tuer\b", r"\bme faire du mal\b", r"\benvie de mourir\b",
     r"\bscarification", r"\bplus envie de vivre\b", r"\bharc[eè]l"
@@ -101,37 +114,37 @@ CRISIS_MESSAGE = """Ce que tu traverses semble difficile, et ça compte. Je suis
 
 Tu n'as pas à traverser ça seul(e). N'hésite pas à contacter une de ces ressources."""
 
-# --- 4. Confidentialité & sobriété des données ------------------------------
-# LYRA ne conserve rien au-delà de la session en mémoire (session_state).
-# Aucune image, audio ou question n'est stocké de façon persistante par
-# l'application elle-même. Le texte ci-dessous est affiché à l'utilisateur.
-PRIVACY_NOTE = "LYRA ne conserve tes questions, photos et messages vocaux que le temps de la session — rien n'est sauvegardé de façon permanente par l'application."
+PRIVACY_NOTE = "LYRA ne conserve tes conversations que dans ton navigateur pour cette session — rien n'est envoyé à un serveur permanent par l'application elle-même."
 
-# --- 1 & 2 & 5 & 6 & 7. Prompt système -------------------------------------
+# --- 1, 2, 5, 6, 7, 10. Prompt système --------------------------------------
+# Comportement assoupli façon ChatGPT : LYRA répond volontiers à des questions
+# hors programme (curiosité générale, culture, aide méthodologique...) au lieu
+# de les refuser, tout en restant identifiable comme tutrice scolaire et en
+# recentrant naturellement vers le niveau de l'élève quand c'est pertinent.
 def system_prompt(niveau, cycle):
     prog = PROGRAMMES.get(niveau, "")
     contexte_mineur = ""
     if cycle in MINEUR_CYCLES:
         contexte_mineur = """
 9. L'élève est probablement mineur : garde un contenu strictement adapté à son âge, sans aucune ambiguïté, et ne développe jamais de sujets sensibles (violence, sexualité, substances) même si la question dévie vers ça — recentre poliment sur le scolaire."""
-    return f"""Tu es LYRA, tutrice pédagogique d'élite pour le niveau {cycle} {niveau}.
-Programme de référence : {prog}.
+    return f"""Tu es LYRA, assistante pédagogique polyvalente pour un élève de {cycle} {niveau}.
+Programme de référence pour ce niveau : {prog}.
 
 RÈGLES DE FOND (à respecter strictement) :
-1. Reste STRICTEMENT dans le programme de {niveau}. Si la question sort du programme, dis-le poliment et propose une reformulation adaptée au niveau.
-2. Ne donne jamais une réponse finale brute sans explication : décompose le raisonnement étape par étape.
-3. Privilégie d'abord un indice ou une question qui aide l'élève à trouver seul, avant de donner la solution complète si l'élève insiste ou bloque.
-4. Si tu n'es pas certaine d'un résultat ou d'un calcul, dis-le explicitement plutôt que d'affirmer avec assurance une chose fausse.
-5. Vérifie mentalement tes calculs avant de les présenter.
-6. Ne fais jamais le travail à la place de l'élève sans qu'il ait au moins tenté de comprendre la méthode.
-7. Reste neutre sur toute question politique, religieuse ou sociétale qui sortirait du cadre scolaire : présente les faits, jamais une opinion personnelle.
-8. Tu es une IA, pas un ami ni un confident : reste chaleureuse et encourageante, mais rappelle si besoin que tu es un outil pédagogique, pas un substitut à des relations humaines réelles.{contexte_mineur}
+1. Tu es avant tout une tutrice scolaire pour {niveau}, mais comme un assistant IA généraliste, tu peux répondre à des questions hors programme (culture générale, méthode de travail, curiosité, aide à la rédaction, etc.) au lieu de refuser — adapte simplement le niveau de langage à l'âge de l'élève.
+2. Pour les exercices et notions du programme, ne donne jamais une réponse finale brute sans explication : décompose le raisonnement étape par étape, et privilégie un indice avant la solution complète si l'élève bloque.
+3. Si tu n'es pas certaine d'un résultat ou d'un calcul, dis-le explicitement plutôt que d'affirmer avec assurance une chose fausse.
+4. Vérifie mentalement tes calculs avant de les présenter.
+5. Ne fais jamais le travail à la place de l'élève sans qu'il ait au moins tenté de comprendre la méthode, pour les exercices notés/évalués.
+6. Reste neutre sur toute question politique, religieuse ou sociétale : présente les faits et différents points de vue, jamais une opinion personnelle.
+7. Tu es une IA, pas un ami ni un confident : reste chaleureuse et encourageante, mais rappelle si besoin que tu es un outil, pas un substitut à des relations humaines réelles.
+8. Refuse poliment tout contenu dangereux, illégal ou inapproprié, indépendamment du sujet scolaire ou non.{contexte_mineur}
 
 Ton direct, clair, sans flatterie inutile, mais encourageant et respectueux.
 Réponse en français clair, aérée, avec titres et exemples adaptés au niveau {niveau}."""
 
 # --- 8. Robustesse technique : cooldown simple anti-abus / anti-surcoût ----
-MIN_INTERVAL = 1.5  # secondes minimum entre deux appels API
+MIN_INTERVAL = 1.5
 
 def cooldown_ok():
     now = time.time()
@@ -140,33 +153,51 @@ def cooldown_ok():
     st.session_state.last_call = now
     return True
 
-def call_text(q, niveau, cycle):
+# --- 10. Réponse en flux façon ChatGPT --------------------------------------
+def stream_text(q, niveau, cycle, extra_context=""):
     if not KEY:
-        return "⚠️ Clé API manquante. Configure GROQ_API_KEY dans les secrets Streamlit."
+        yield "⚠️ Clé API manquante. Configure GROQ_API_KEY dans les secrets Streamlit."
+        return
     if not cooldown_ok():
-        return "⏳ Une question à la fois — attends une seconde avant d'envoyer la suivante."
+        yield "⏳ Une question à la fois — attends une seconde avant d'envoyer la suivante."
+        return
+    user_content = q if not extra_context else f"{q}\n\n[Contexte du fichier joint]\n{extra_context[:6000]}"
     try:
-        r = requests.post(
+        with requests.post(
             "https://api.groq.com/openai/v1/chat/completions",
             headers={"Authorization": f"Bearer {KEY}"},
             json={
                 "model": "openai/gpt-oss-20b",
                 "messages": [
                     {"role": "system", "content": system_prompt(niveau, cycle)},
-                    {"role": "user", "content": q}
-                ]
+                    {"role": "user", "content": user_content}
+                ],
+                "stream": True
             },
-            timeout=40
-        )
-        r.raise_for_status()
-        data = r.json()
-        return data["choices"][0]["message"]["content"]
+            timeout=60,
+            stream=True
+        ) as r:
+            r.raise_for_status()
+            for line in r.iter_lines():
+                if not line:
+                    continue
+                line = line.decode("utf-8")
+                if not line.startswith("data: "):
+                    continue
+                payload = line[len("data: "):]
+                if payload.strip() == "[DONE]":
+                    break
+                try:
+                    chunk = json.loads(payload)
+                    delta = chunk["choices"][0]["delta"].get("content", "")
+                    if delta:
+                        yield delta
+                except (KeyError, IndexError, json.JSONDecodeError):
+                    continue
     except requests.exceptions.Timeout:
-        return "⏱️ LYRA met trop de temps à répondre. Réessaie dans un instant."
+        yield "⏱️ LYRA met trop de temps à répondre. Réessaie dans un instant."
     except requests.exceptions.RequestException as e:
-        return f"⚠️ Problème de connexion avec LYRA : {type(e).__name__}"
-    except (KeyError, ValueError, IndexError):
-        return "⚠️ Réponse inattendue reçue. Réessaie ta question."
+        yield f"⚠️ Problème de connexion avec LYRA : {type(e).__name__}"
 
 def call_vision(q, img_bytes, niveau):
     if not KEY:
@@ -214,39 +245,83 @@ def transcribe(b):
     except requests.exceptions.RequestException:
         return ""
 
+# --- 10. Upload de documents (pdf/txt) façon ChatGPT ------------------------
+def extract_document_text(uploaded_file):
+    name = uploaded_file.name.lower()
+    if name.endswith(".txt"):
+        try:
+            return uploaded_file.getvalue().decode("utf-8", errors="ignore")
+        except Exception:
+            return ""
+    if name.endswith(".pdf"):
+        try:
+            import PyPDF2
+            reader = PyPDF2.PdfReader(uploaded_file)
+            return "\n".join(page.extract_text() or "" for page in reader.pages)
+        except ImportError:
+            return "[PyPDF2 non installé : impossible d'extraire ce PDF côté serveur]"
+        except Exception:
+            return "[Impossible de lire ce PDF]"
+    return ""
+
 with st.sidebar:
     st.markdown("## ✨ LYRA")
     if not KEY:
         st.markdown('<div class="lyra-warning">Clé GROQ_API_KEY absente des secrets.</div>', unsafe_allow_html=True)
+
+    if st.button("➕ Nouvelle conversation", use_container_width=True):
+        new_id = str(uuid.uuid4())
+        st.session_state.conversations[new_id] = {"title": "Nouvelle conversation", "messages": []}
+        st.session_state.current_conv = new_id
+        st.rerun()
+
+    st.caption("Conversations")
+    # --- 10. Historique des conversations façon ChatGPT ---
+    for conv_id, conv in list(st.session_state.conversations.items()):
+        cols = st.columns([5, 1])
+        active = conv_id == st.session_state.current_conv
+        with cols[0]:
+            st.markdown('<div class="conv-btn">', unsafe_allow_html=True)
+            if st.button(("🟢 " if active else "") + conv["title"], key=f"sel_{conv_id}", use_container_width=True):
+                st.session_state.current_conv = conv_id
+                st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+        with cols[1]:
+            if len(st.session_state.conversations) > 1 and st.button("🗑️", key=f"del_{conv_id}"):
+                del st.session_state.conversations[conv_id]
+                if st.session_state.current_conv == conv_id:
+                    st.session_state.current_conv = next(iter(st.session_state.conversations))
+                st.rerun()
+
+    st.markdown("---")
     cycle = st.segmented_control("Cycle", list(CYCLES.keys()), default=st.session_state.cycle)
     if cycle: st.session_state.cycle = cycle
     niveau = st.segmented_control("Niveau", CYCLES[st.session_state.cycle], default=st.session_state.niveau if st.session_state.niveau in CYCLES[st.session_state.cycle] else CYCLES[st.session_state.cycle][0])
     if niveau: st.session_state.niveau = niveau
-    st.markdown("---")
     st.caption(f"🔒 Verrouillé sur {st.session_state.niveau}")
+
+    st.markdown("---")
     st.file_uploader("📸 Photo exo", type=["jpg", "png", "jpeg"], key="up")
     st.camera_input("Caméra", key="cam", label_visibility="collapsed")
     st.audio_input("🎙️ Vocal", key="aud", label_visibility="collapsed")
+    st.file_uploader("📄 Document (pdf/txt)", type=["pdf", "txt"], key="doc")
+
     st.markdown("---")
-    # 8. Accessibilité : taille de texte ajustable
     font_choice = st.select_slider("🔠 Taille du texte", options=["Petite", "Normale", "Grande"], value=st.session_state.font_size)
     st.session_state.font_size = font_choice
-    if st.button("🗑️ Nouvelle conversation", use_container_width=True):
-        st.session_state.messages = []
-        st.rerun()
+
     st.markdown("---")
     with st.expander("ℹ️ À propos de LYRA"):
         st.caption("LYRA est une intelligence artificielle, pas un enseignant humain. Elle peut se tromper : vérifie toujours les points importants avec ton professeur.")
         st.caption(PRIVACY_NOTE)
 
-# Application de la taille de police choisie
 _size_map = {"Petite": "15px", "Normale": "17px", "Grande": "20px"}
 st.markdown(f"<style>:root {{ --lyra-font-size: {_size_map[st.session_state.font_size]}; }}</style>", unsafe_allow_html=True)
 
 st.markdown(f"### ✨ LYRA • {st.session_state.cycle} — {st.session_state.niveau}")
 st.caption("Ta tutrice pédagogique : elle t'aide à comprendre, pas seulement à trouver la réponse")
 
-for m in st.session_state.messages:
+for m in current_messages():
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
 # Photo
@@ -254,8 +329,9 @@ img = st.session_state.get("cam") or st.session_state.get("up")
 if img and (st.session_state.get("up") is not None or st.session_state.get("cam") is not None):
     if st.button("📸 Analyser la photo"):
         ans = call_vision("Résous l'exercice sur l'image étape par étape", img.getvalue(), st.session_state.niveau)
-        st.session_state.messages.append({"role": "user", "content": "📸 [Photo d'exercice]"})
-        st.session_state.messages.append({"role": "assistant", "content": ans})
+        current_messages().append({"role": "user", "content": "📸 [Photo d'exercice]"})
+        current_messages().append({"role": "assistant", "content": ans})
+        set_conv_title_from_first_message("Photo d'exercice")
         st.rerun()
 
 # Vocal
@@ -263,26 +339,38 @@ aud = st.session_state.get("aud")
 if aud:
     txt = transcribe(aud.getvalue())
     if txt:
+        current_messages().append({"role": "user", "content": f"🎙️ {txt}"})
+        set_conv_title_from_first_message(txt)
         if detect_crisis(txt):
-            st.session_state.messages.append({"role": "user", "content": f"🎙️ {txt}"})
-            st.session_state.messages.append({"role": "assistant", "content": CRISIS_MESSAGE})
+            current_messages().append({"role": "assistant", "content": CRISIS_MESSAGE})
+            st.rerun()
         else:
-            st.session_state.messages.append({"role": "user", "content": f"🎙️ {txt}"})
-            ans = call_text(txt, st.session_state.niveau, st.session_state.cycle)
-            st.session_state.messages.append({"role": "assistant", "content": ans})
-        st.rerun()
+            with st.chat_message("assistant"):
+                full = st.write_stream(stream_text(txt, st.session_state.niveau, st.session_state.cycle))
+            current_messages().append({"role": "assistant", "content": full})
+            st.rerun()
     else:
         st.warning("Je n'ai pas réussi à comprendre l'audio, réessaie ou écris ta question.")
 
 q = st.chat_input(f"Question de {st.session_state.niveau}...")
 if q:
-    st.session_state.messages.append({"role": "user", "content": q})
-    # 3. Détection de détresse : court-circuite l'appel API pédagogique
+    doc_text = ""
+    doc_file = st.session_state.get("doc")
+    if doc_file is not None:
+        doc_text = extract_document_text(doc_file)
+
+    current_messages().append({"role": "user", "content": q + (f"\n\n📄 *(avec {doc_file.name})*" if doc_file is not None else "")})
+    set_conv_title_from_first_message(q)
+    with st.chat_message("user"):
+        st.markdown(q)
+
     if detect_crisis(q):
-        st.session_state.messages.append({"role": "assistant", "content": CRISIS_MESSAGE})
+        current_messages().append({"role": "assistant", "content": CRISIS_MESSAGE})
     else:
-        ans = call_text(q, st.session_state.niveau, st.session_state.cycle)
-        st.session_state.messages.append({"role": "assistant", "content": ans})
+        with st.chat_message("assistant"):
+            full = st.write_stream(stream_text(q, st.session_state.niveau, st.session_state.cycle, extra_context=doc_text))
+        current_messages().append({"role": "assistant", "content": full})
     st.rerun()
 
 st.markdown('<div class="lyra-footer">LYRA est une IA et peut faire des erreurs — vérifie les points importants avec ton professeur.</div>', unsafe_allow_html=True)
+                   
