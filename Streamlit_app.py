@@ -5,8 +5,6 @@ import time
 import re
 import json
 import uuid
-import html
-import io
 
 # ============================================================
 # CONFIGURATION
@@ -25,10 +23,7 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-
-#MainMenu,
-footer,
-header {
+#MainMenu, footer, header {
     visibility: hidden;
 }
 
@@ -37,9 +32,7 @@ header {
     color: #ececec;
 }
 
-html,
-body,
-[class*="css"] {
+html, body, [class*="css"] {
     font-family: Inter, -apple-system, BlinkMacSystemFont,
         "Segoe UI", sans-serif;
 }
@@ -52,36 +45,27 @@ section[data-testid="stSidebar"] {
 }
 
 section[data-testid="stSidebar"] > div {
-    padding: 0.7rem 0.65rem 0.8rem;
+    padding: 0.7rem 0.65rem 0.8rem 0.65rem;
 }
 
 .lyra-brand {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 8px 10px 18px;
+    padding: 8px 10px 18px 10px;
 }
 
 .lyra-logo {
     width: 32px;
     height: 32px;
     border-radius: 10px;
-
     display: flex;
     align-items: center;
     justify-content: center;
-
-    background: linear-gradient(
-        135deg,
-        #8b5cf6,
-        #6366f1
-    );
-
+    background: linear-gradient(135deg, #8b5cf6, #6366f1);
     color: white;
     font-size: 17px;
-
-    box-shadow:
-        0 4px 18px rgba(99,102,241,.25);
+    box-shadow: 0 4px 18px rgba(99,102,241,.25);
 }
 
 .lyra-brand-name {
@@ -111,7 +95,7 @@ section[data-testid="stSidebar"] button:hover {
 .new-chat-btn button {
     background: #2a2a2a !important;
     border: 1px solid #3b3b3b !important;
-    color: white !important;
+    color: #fff !important;
     height: 42px !important;
 }
 
@@ -120,7 +104,6 @@ section[data-testid="stSidebar"] button:hover {
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
-
     font-size: 13px !important;
     padding: 8px 10px !important;
 }
@@ -132,27 +115,17 @@ section[data-testid="stSidebar"] button:hover {
     padding: 16px 10px 6px;
 }
 
-.sidebar-bottom {
-    border-top: 1px solid #303030;
-    margin-top: 16px;
-    padding-top: 12px;
-}
-
 /* TOPBAR */
 
 .lyra-topbar {
     height: 58px;
-
     display: flex;
     align-items: center;
     justify-content: space-between;
-
     padding: 0 20px;
-
     position: sticky;
     top: 0;
     z-index: 10;
-
     background: rgba(33,33,33,.92);
     backdrop-filter: blur(12px);
 }
@@ -173,23 +146,15 @@ section[data-testid="stSidebar"] button:hover {
 div[data-testid="stChatMessage"] {
     background: transparent !important;
     border: none !important;
-    border-radius: 0 !important;
-
     padding: 20px 0 !important;
     margin: 0 auto !important;
-
     max-width: 820px !important;
 }
 
 div[data-testid="stChatMessage"] p,
 div[data-testid="stChatMessage"] li {
-
-    font-family: Inter, sans-serif !important;
-
-    font-size: 15.5px !important;
-
+    font-size: var(--lyra-font-size, 15.5px) !important;
     line-height: 1.75 !important;
-
     color: #ececec !important;
 }
 
@@ -202,49 +167,32 @@ div[data-testid="stChatMessage"] pre {
 
 .lyra-welcome {
     min-height: 55vh;
-
     display: flex;
     flex-direction: column;
-
     align-items: center;
     justify-content: center;
-
     text-align: center;
-
     padding: 50px 20px;
 }
 
 .lyra-welcome-logo {
     width: 58px;
     height: 58px;
-
     border-radius: 18px;
-
-    background: linear-gradient(
-        135deg,
-        #8b5cf6,
-        #6366f1
-    );
-
+    background: linear-gradient(135deg, #8b5cf6, #6366f1);
     display: flex;
     align-items: center;
     justify-content: center;
-
     color: white;
     font-size: 28px;
-
     margin-bottom: 22px;
-
-    box-shadow:
-        0 10px 35px rgba(99,102,241,.25);
+    box-shadow: 0 10px 35px rgba(99,102,241,.25);
 }
 
 .lyra-welcome h1 {
     font-size: 29px;
     color: #f5f5f5;
-
     margin: 0 0 8px;
-
     font-weight: 600;
 }
 
@@ -257,64 +205,37 @@ div[data-testid="stChatMessage"] pre {
 /* CHAT INPUT */
 
 div[data-testid="stChatInput"] {
-
     max-width: 820px !important;
-
     margin: 0 auto !important;
-
     background: #2f2f2f !important;
-
     border: 1px solid #444 !important;
-
     border-radius: 26px !important;
-
-    box-shadow:
-        0 5px 30px rgba(0,0,0,.20) !important;
 }
 
 div[data-testid="stChatInput"] textarea {
     color: #f5f5f5 !important;
     background: transparent !important;
-
-    font-size: 15px !important;
-}
-
-div[data-testid="stChatInput"]
-textarea::placeholder {
-    color: #9a9a9a !important;
 }
 
 /* WARNINGS */
 
 .lyra-warning {
     background: #2d2414;
-
     border: 1px solid #6b531d;
-
     border-radius: 10px;
-
     padding: 11px 13px;
-
     color: #f5d48a;
-
     font-size: 12px;
-
     margin-bottom: 12px;
 }
 
 .lyra-crisis {
     background: #321919;
-
     border: 1px solid #713333;
-
     border-radius: 12px;
-
     padding: 15px;
-
     color: #fecaca;
-
     font-size: 14px;
-
     line-height: 1.6;
 }
 
@@ -322,11 +243,8 @@ textarea::placeholder {
 
 .lyra-footer {
     text-align: center;
-
     color: #777;
-
     font-size: 11px;
-
     padding: 12px 0 22px;
 }
 
@@ -356,7 +274,6 @@ textarea::placeholder {
         padding: 0 10px;
     }
 }
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -396,18 +313,11 @@ if "font_size" not in st.session_state:
 
 
 # ============================================================
-# API
+# DONNÉES
 # ============================================================
 
-KEY = st.secrets.get(
-    "GROQ_API_KEY",
-    ""
-).strip()
+KEY = st.secrets.get("GROQ_API_KEY", "").strip()
 
-
-# ============================================================
-# DONNÉES SCOLAIRES
-# ============================================================
 
 CYCLES = {
 
@@ -431,14 +341,14 @@ CYCLES = {
         "Master 1",
         "Master 2",
         "Doctorat"
-    ]
+    ],
 }
 
 
 PROGRAMMES = {
 
     "6e":
-        "bases fractions, décimaux, géométrie simple",
+        "fractions, décimaux, géométrie simple",
 
     "5e":
         "fractions, proportionnalité",
@@ -468,13 +378,13 @@ PROGRAMMES = {
         "topologie",
 
     "Master 1":
-        "master recherche",
+        "recherche avancée",
 
     "Master 2":
         "expert",
 
     "Doctorat":
-        "recherche doctorale"
+        "recherche doctorale",
 }
 
 
@@ -482,6 +392,49 @@ MINEUR_CYCLES = {
     "Collège",
     "Lycée"
 }
+
+
+# ============================================================
+# SÉCURITÉ
+# ============================================================
+
+CRISIS_PATTERNS = [
+
+    r"\bsuicid",
+    r"\bme tuer\b",
+    r"\bme faire du mal\b",
+    r"\benvie de mourir\b",
+    r"\bscarification",
+    r"\bplus envie de vivre\b",
+    r"\bharc[eè]l"
+
+]
+
+
+def detect_crisis(text: str) -> bool:
+
+    text = text.lower()
+
+    return any(
+        re.search(pattern, text)
+        for pattern in CRISIS_PATTERNS
+    )
+
+
+CRISIS_MESSAGE = """
+Ce que tu traverses semble difficile, et ça compte.
+
+Je suis une IA pédagogique et je ne suis pas la bonne ressource
+pour gérer une situation de crise.
+
+Le plus important est de contacter une personne réelle capable
+de t'aider immédiatement.
+
+Si tu es en danger immédiat, contacte les services d'urgence
+de ton pays ou demande directement de l'aide à un adulte de confiance.
+
+Tu n'as pas à gérer ça seul(e).
+"""
 
 
 # ============================================================
@@ -503,14 +456,11 @@ def set_conv_title_from_first_message(text):
 
     if conv["title"] == "Nouvelle conversation":
 
-        clean = text.strip().replace(
-            "\n",
-            " "
-        )
+        clean = text.strip().replace("\n", " ")
 
         conv["title"] = (
-            clean[:42]
-            + ("…" if len(clean) > 42 else "")
+            clean[:42] +
+            ("…" if len(clean) > 42 else "")
         )
 
 
@@ -527,74 +477,12 @@ def new_conversation():
 
 
 # ============================================================
-# SÉCURITÉ
-# ============================================================
-
-CRISIS_PATTERNS = [
-
-    r"\bsuicid",
-
-    r"\bme tuer\b",
-
-    r"\bme faire du mal\b",
-
-    r"\benvie de mourir\b",
-
-    r"\bscarification",
-
-    r"\bplus envie de vivre\b",
-
-    r"\bharc[eè]l"
-]
-
-
-def detect_crisis(text):
-
-    text = text.lower()
-
-    return any(
-        re.search(
-            pattern,
-            text
-        )
-        for pattern in CRISIS_PATTERNS
-    )
-
-
-CRISIS_MESSAGE = """
-Ce que tu traverses semble difficile, et ça compte.
-
-Je suis une IA pédagogique et je ne suis pas la bonne ressource
-pour gérer une situation de crise.
-
-Le plus important est de contacter une personne réelle capable
-de t'aider immédiatement.
-
-Si tu es en danger immédiat, contacte les services d'urgence
-de ton pays ou demande directement de l'aide à un adulte
-de confiance.
-
-Tu n'as pas à gérer ça seul(e).
-"""
-
-
-PRIVACY_NOTE = (
-    "LYRA conserve l'historique dans la session Streamlit. "
-    "Les messages envoyés au modèle sont transmis au fournisseur "
-    "d'IA configuré pour obtenir les réponses."
-)
-
-
-# ============================================================
 # PROMPT
 # ============================================================
 
 def system_prompt(niveau, cycle):
 
-    prog = PROGRAMMES.get(
-        niveau,
-        ""
-    )
+    prog = PROGRAMMES.get(niveau, "")
 
     contexte_mineur = ""
 
@@ -603,10 +491,10 @@ def system_prompt(niveau, cycle):
         contexte_mineur = """
 L'élève est probablement mineur.
 
-Garde donc les réponses adaptées à son âge.
+Garde les réponses adaptées à son âge.
 
-Ne développe pas de contenu sexuel, violent
-ou lié aux substances.
+Ne développe pas de contenu sexuel,
+violent ou lié aux substances.
 """
 
 
@@ -616,45 +504,46 @@ Tu es LYRA, une assistante pédagogique polyvalente.
 L'élève est en {cycle}, niveau {niveau}.
 
 Programme de référence :
-
 {prog}
 
 RÈGLES :
 
 1. Tu es avant tout une tutrice pédagogique.
 
-2. Tu peux répondre aux questions générales hors programme
-si elles sont appropriées.
+2. Pour les exercices scolaires,
+explique le raisonnement étape par étape.
 
-3. Pour les exercices scolaires, explique le raisonnement
-étape par étape.
+3. Ne donne pas uniquement le résultat final.
 
-4. Ne donne pas uniquement le résultat final.
+4. Si l'élève apprend,
+privilégie les indices et les exemples.
 
-5. Si l'élève semble apprendre, privilégie les indices,
-les explications et les exemples.
+5. Vérifie les calculs avant de répondre.
 
-6. Vérifie les calculs avant de répondre.
+6. Si tu n'es pas sûre,
+indique ton incertitude.
 
-7. Si tu n'es pas sûre, indique ton incertitude.
+7. Ne prétends jamais être humaine.
 
-8. Ne prétends jamais être humaine.
+8. Reste chaleureuse sans créer
+de dépendance affective.
 
-9. Reste chaleureuse mais ne crée pas de dépendance affective.
+9. Pour les sujets politiques,
+religieux ou sociétaux,
+reste neutre.
 
-10. Pour les sujets politiques, religieux ou sociétaux,
-reste neutre et présente les faits.
+10. Refuse les demandes dangereuses
+ou illégales.
 
-11. Refuse les demandes dangereuses ou illégales.
-
-12. Ne prétends jamais avoir accès à une information
-que tu n'as pas.
+11. Ne prétends jamais avoir accès
+à une information que tu n'as pas.
 
 {contexte_mineur}
 
 Réponds en français clair et naturel.
 
-Utilise Markdown lorsque cela améliore la compréhension.
+Utilise Markdown lorsque cela améliore
+la compréhension.
 """
 
 
@@ -687,9 +576,7 @@ def build_messages(
 
     for message in history:
 
-        role = message.get(
-            "role"
-        )
+        role = message.get("role")
 
         if role not in {
             "user",
@@ -704,9 +591,7 @@ def build_messages(
         )
 
 
-        if content.startswith(
-            "📸 [Photo"
-        ):
+        if content.startswith("📸 [Photo"):
 
             content = (
                 "L'utilisateur a envoyé "
@@ -717,7 +602,6 @@ def build_messages(
         messages.append({
 
             "role": role,
-
             "content": content
 
         })
@@ -729,15 +613,16 @@ def build_messages(
     if extra_context:
 
         user_content += (
-            "\n\n[Contexte du document joint]\n"
-            + extra_context[:8000]
+            "\n\n"
+            "[Contexte du document joint]\n"
+            +
+            extra_context[:8000]
         )
 
 
     messages.append({
 
         "role": "user",
-
         "content": user_content
 
     })
@@ -757,11 +642,11 @@ def cooldown_ok():
 
     now = time.time()
 
-
     if (
-        now
-        - st.session_state.last_call
-        < MIN_INTERVAL
+        now -
+        st.session_state.last_call
+        <
+        MIN_INTERVAL
     ):
 
         return False
@@ -773,7 +658,7 @@ def cooldown_ok():
 
 
 # ============================================================
-# GROQ — TEXTE
+# TEXTE GROQ
 # ============================================================
 
 def stream_text(
@@ -787,8 +672,8 @@ def stream_text(
 
         yield (
             "⚠️ **Clé API manquante.**\n\n"
-            "Configure `GROQ_API_KEY` dans les secrets "
-            "Streamlit."
+            "Ajoute `GROQ_API_KEY` "
+            "dans les secrets Streamlit."
         )
 
         return
@@ -797,24 +682,20 @@ def stream_text(
     if not cooldown_ok():
 
         yield (
-            "⏳ Attends un instant avant "
-            "d'envoyer une nouvelle question."
+            "⏳ Attends un instant "
+            "avant d'envoyer "
+            "une nouvelle question."
         )
 
         return
 
 
-    messages = build_messages(
-        question,
-        niveau,
-        cycle,
-        extra_context
-    )
+    response = None
 
 
     try:
 
-        with requests.post(
+        response = requests.post(
 
             "https://api.groq.com/openai/v1/chat/completions",
 
@@ -834,7 +715,12 @@ def stream_text(
                     "openai/gpt-oss-20b",
 
                 "messages":
-                    messages,
+                    build_messages(
+                        question,
+                        niveau,
+                        cycle,
+                        extra_context
+                    ),
 
                 "temperature":
                     0.5,
@@ -848,107 +734,79 @@ def stream_text(
 
             stream=True
 
-        ) as response:
+        )
 
 
-            if not response.ok:
+        if not response.ok:
 
-                try:
+            detail = response.text[:500]
 
-                    detail = (
-                        response
-                        .json()
-                        .get("error", {})
-                        .get(
-                            "message",
-                            response.text[:300]
-                        )
-                    )
+            yield (
+                f"⚠️ Erreur API Groq "
+                f"({response.status_code}) : "
+                f"{detail}"
+            )
 
-                except ValueError:
-
-                    detail = response.text[:300]
+            return
 
 
-                yield (
-                    f"⚠️ Erreur API Groq "
-                    f"({response.status_code}) : "
-                    f"{detail}"
+        for line in response.iter_lines(
+            decode_unicode=True
+        ):
+
+            if not line:
+                continue
+
+
+            if not line.startswith("data: "):
+                continue
+
+
+            payload = line[6:].strip()
+
+
+            if payload == "[DONE]":
+                break
+
+
+            try:
+
+                chunk = json.loads(
+                    payload
                 )
 
-                return
 
+                delta = (
 
-            for line in response.iter_lines():
-
-                if not line:
-                    continue
-
-
-                if isinstance(
-                    line,
-                    bytes
-                ):
-
-                    line = line.decode(
-                        "utf-8",
-                        errors="ignore"
-                    )
-
-
-                if not line.startswith(
-                    "data: "
-                ):
-
-                    continue
-
-
-                payload = line[6:].strip()
-
-
-                if payload == "[DONE]":
-
-                    break
-
-
-                try:
-
-                    chunk = json.loads(
-                        payload
-                    )
-
-
-                    choices = chunk.get(
+                    chunk
+                    .get(
                         "choices",
-                        []
+                        [{}]
+                    )[0]
+                    .get(
+                        "delta",
+                        {}
+                    )
+                    .get(
+                        "content",
+                        ""
                     )
 
-
-                    if choices:
-
-                        delta = (
-                            choices[0]
-                            .get("delta", {})
-                            .get(
-                                "content",
-                                ""
-                            )
-                        )
+                )
 
 
-                        if delta:
+                if delta:
+                    yield delta
 
-                            yield delta
 
+            except (
+                json.JSONDecodeError,
+                KeyError,
+                IndexError,
+                TypeError
+            ):
 
-                except (
-                    json.JSONDecodeError,
-                    KeyError,
-                    IndexError,
-                    TypeError
-                ):
-
-                    continue
+                continue
 
 
     except requests.exceptions.Timeout:
@@ -962,20 +820,27 @@ def stream_text(
     except requests.exceptions.RequestException as error:
 
         yield (
-            f"⚠️ Problème de connexion "
+            "⚠️ Problème de connexion "
             f"avec LYRA : "
             f"{type(error).__name__}"
         )
 
 
+    finally:
+
+        if response is not None:
+            response.close()
+
+
 # ============================================================
-# GROQ — VISION
+# VISION
 # ============================================================
 
 def call_vision(
     question,
     image_bytes,
-    niveau
+    niveau,
+    mime_type="image/jpeg"
 ):
 
     if not KEY:
@@ -989,8 +854,9 @@ def call_vision(
     if not cooldown_ok():
 
         return (
-            "⏳ Attends un instant avant "
-            "d'envoyer une nouvelle demande."
+            "⏳ Attends un instant "
+            "avant d'envoyer "
+            "une nouvelle demande."
         )
 
 
@@ -1018,7 +884,7 @@ def call_vision(
             json={
 
                 "model":
-                    "meta-llama/llama-4-scout-17b-16e-instruct",
+                    "qwen/qwen3.6-27b",
 
                 "messages": [
 
@@ -1032,7 +898,7 @@ def call_vision(
 Tu es LYRA, tutrice pédagogique
 pour un élève de {niveau}.
 
-Analyse l'exercice scolaire
+Analyse uniquement l'exercice scolaire
 présent dans l'image.
 
 Lis attentivement les nombres,
@@ -1041,8 +907,7 @@ symboles et consignes.
 Si quelque chose est illisible,
 dis-le au lieu d'inventer.
 
-Explique le raisonnement
-étape par étape.
+Explique le raisonnement étape par étape.
 """
 
                     },
@@ -1060,10 +925,8 @@ Explique le raisonnement
                                     "text",
 
                                 "text":
-                                    question
-                                    or
-                                    "Résous cet exercice "
-                                    "et explique la méthode."
+                                    question or
+                                    "Analyse cet exercice."
 
                             },
 
@@ -1075,8 +938,11 @@ Explique le raisonnement
                                 "image_url": {
 
                                     "url":
-                                        "data:image/jpeg;base64,"
-                                        + encoded
+                                        (
+                                            f"data:"
+                                            f"{mime_type};base64,"
+                                            f"{encoded}"
+                                        )
 
                                 }
 
@@ -1086,7 +952,13 @@ Explique le raisonnement
 
                     }
 
-                ]
+                ],
+
+                "temperature":
+                    0.3,
+
+                "max_completion_tokens":
+                    2048
 
             },
 
@@ -1097,18 +969,127 @@ Explique le raisonnement
 
         if not response.ok:
 
-            try:
+            return (
+                f"⚠️ Erreur vision "
+                f"({response.status_code}) : "
+                f"{response.text[:500]}"
+            )
 
-                detail = (
-                    response
-                    .json()
-                    .get("error", {})
-                    .get(
-                        "message",
-                        response.text[:300]
-                    )
+
+        data = response.json()
+
+
+        return (
+            data["choices"][0]
+            ["message"]
+            ["content"]
+        )
+
+
+    except requests.exceptions.RequestException as error:
+
+        return (
+            "⚠️ Problème de connexion : "
+            f"{type(error).__name__}"
+        )
+
+
+    except (
+        KeyError,
+        ValueError,
+        IndexError,
+        TypeError
+    ):
+
+        return (
+            "⚠️ Impossible d'analyser "
+            "cette image. "
+            "Essaie avec une photo plus nette."
+        )
+
+
+# ============================================================
+# TRANSCRIPTION AUDIO
+# ============================================================
+
+def transcribe(
+    audio_bytes,
+    filename="audio.wav",
+    mime_type="audio/wav"
+):
+
+    if not KEY:
+        return ""
+
+
+    try:
+
+        response = requests.post(
+
+            "https://api.groq.com/openai/v1/audio/transcriptions",
+
+            headers={
+
+                "Authorization":
+                    f"Bearer {KEY}"
+
+            },
+
+            files={
+
+                "file": (
+
+                    filename,
+                    audio_bytes,
+                    mime_type
+
                 )
 
-            except ValueError:
+            },
 
-                detail = response.text
+            data={
+
+                "model":
+                    "whisper-large-v3-turbo",
+
+                "response_format":
+                    "json"
+
+            },
+
+            timeout=60
+
+        )
+
+
+        if not response.ok:
+            return ""
+
+
+        data = response.json()
+
+
+        return data.get(
+            "text",
+            ""
+        ).strip()
+
+
+    except (
+        requests.exceptions.RequestException,
+        ValueError,
+        TypeError
+    ):
+
+        return ""
+
+
+# ============================================================
+# SIDEBAR
+# ============================================================
+
+with st.sidebar:
+
+    st.markdown(
+        """
+        
