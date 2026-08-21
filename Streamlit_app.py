@@ -1,5 +1,11 @@
 import streamlit as st, requests, base64, time, re, json, uuid
-
+# FIX PWA BUILDER - Ajoute un vrai manifest pour Lyra
+manifest_code = """
+<link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiTHlyYSBBSSIsInNob3J0X25hbWUiOiJMeXJhIiwiZGlzcGxheSI6InN0YW5kYWxvbmUiLCJiYWNrZ3JvdW5kX2NvbG9yIjoiI0ZDRENFOSIsInRoZW1lX2NvbG9yIjoiI0UwN0E0RiIsImljb25zIjpbXX0=">
+<link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/4712/4712027.png">
+<meta name="theme-color" content="#E07A4F">
+"""
+st.markdown(manifest_code, unsafe_allow_html=True)
 st.set_page_config(page_title="LYRA", page_icon="✨", layout="wide")
 st.markdown("""
 <style>
