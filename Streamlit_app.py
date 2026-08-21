@@ -53,6 +53,7 @@ div[data-testid="stChatInput"] {
 </style>
 """, unsafe_allow_html=True)
 
+# --- Multi-conversations ---
 if "conversations" not in st.session_state:
     first_id = str(uuid.uuid4())
     st.session_state.conversations = {first_id: {"title": "Nouvelle conversation", "messages": []}}
@@ -84,4 +85,253 @@ PROGRAMMES = {
 }
 MINEUR_CYCLES = {"Collège", "Lycée"}
 
-CRISIS_PATTERNS = [r"\bsuicid", r"\bme tuer\b", r"\bme faire du mal\b", r"\benvie de mourir\b", r"\bscarification", r"\bplus envie de vivre\b",
+# --- FIX BUG 1: Pas de regex avec \b qui casse ---
+CRISIS_PATTERNS = ["suicid", "me tuer", "me faire du mal", "envie de mourir", "scarification", "plus envie de vivre", "harcel"]
+
+def detect_crisis(text: str) -> bool:
+    t = text.lower()
+    return any(p in t for p in CRISIS_PATTERNS)
+
+CRISIS_MESSAGE = """Ce que tu traverses semble difficile, et ça compte. Je suis une IA pédagogique et je ne suis pas la bonne ressource pour ça — mais il existe des personnes formées pour t'aider vraiment.
+
+**En France :**
+- **3114** — numéro national de prévention du suicide, gratuit, 24h/24
+- **Fil Santé Jeunes : 0 800 235 236** (appel et tchat anonymes)
+- Ou parle à un adulte de confiance : parent, infirmier(ère) scolaire, professeur
+
+Tu n'as pas à traverser ça seul(e)."""
+
+PRIVACY_NOTE = "LYRA ne conserve tes conversations que dans ton navigateur pour cette session — rien n'est envoyé à un serveur permanent par l'application elle-même."
+
+def system_prompt(niveau, cycle):
+    prog = PROGRAMMES.get(niveau, "")
+    contexte_mineur = ""
+    if cycle in MINEUR_CYCLES:
+        contexte_mineur = """
+9. L'élève est probablement mineur : garde un contenu strictement adapté à son âge, sans aucune ambiguïté, et ne développe jamais de sujets sensibles (violence, sexualité, substances) même si la question dévie vers ça — recentre poliment sur le scolaire."""
+    return f"""Tu es LYRA, assistante pédagogique polyvalente pour un élève de {cycle} {niveau}.
+Programme de référence pour ce niveau : {prog}.
+
+RÈGLES DE FOND :
+1. Tu es avant tout une tutrice scolaire pour {niveau}, mais tu peux répondre à des questions hors programme au lieu de refuser.
+2. Pour les exercices, décompose étape par étape, indice avant solution.
+3. Si tu n'es pas certaine, dis-le.
+4. Vérifie tes calculs.
+5. Ne fais jamais le travail à la place de l'élève sans qu'il ait tenté.
+6. Reste neutre sur politique/religion.
+7. Tu es une IA, pas un ami.
+8. Refuse contenu dangereux/illégal.{contexte_mineur}
+Ton direct, clair, encourageant. Réponse en français clair, aérée, niveau {niveau}."""
+
+MIN_INTERVAL = 1.5
+def cooldown_ok():
+    now = time.time()
+    if now - st.session_state.last_call < MIN_INTERVAL:
+        return False
+    st.session_state.last_call = now
+    return True
+
+def stream_text(q, niveau, cycle, extra_context=""):
+    if not KEY:
+        yield "⚠️ Clé API manquante. Configure GROQ_API_KEY dans les secrets Streamlit."
+        return
+    if not cooldown_ok():
+        yield "⏳ Une question à la fois — attends une seconde."
+        return
+    user_content = q if not extra_context else f"{q}\n\n[Contexte du fichier joint]\n{extra_context[:6000]}"
+    try:
+        with requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {KEY}"},
+            json={
+                "model": "llama-3.1-8b-instant",
+                "messages": [
+                    {"role": "system", "content": system_prompt(niveau, cycle)},
+                    {"role": "user", "content": user_content}
+                ],
+                "stream": True
+            },
+            timeout=60,
+            stream=True
+        ) as r:
+            r.raise_for_status()
+            for line in r.iter_lines():
+                if not line: continue
+                line = line.decode("utf-8")
+                if not line.startswith("data: "): continue
+                payload = line[len("data: "):]
+                if payload.strip() == "[DONE]": break
+                try:
+                    chunk = json.loads(payload)
+                    delta = chunk["choices"][0]["delta"].get("content", "")
+                    if delta: yield delta
+                except: continue
+    except requests.exceptions.HTTPError as e:
+        code = e.response.status_code if e.response else 0
+        if code == 401:
+            yield "❌ Clé GROQ_API_KEY invalide. Va dans Manage app > Settings > Secrets."
+        elif code == 429:
+            yield "⚠️ Trop de requêtes, attends 10s."
+        else:
+            yield f"⚠️ Erreur Groq {code}: {e.response.text[:300] if e.response else str(e)}"
+    except Exception as e:
+        yield f"⚠️ Problème connexion: {e}"
+
+def call_vision(q, img_bytes, niveau):
+    if not KEY:
+        return "⚠️ Clé API manquante."
+    if not cooldown_ok():
+        return "⏳ Attends une seconde..."
+    try:
+        b64 = base64.b64encode(img_bytes).decode()
+        r = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {KEY}"},
+            json={
+                "model": "llama-3.2-11b-vision-preview",
+                "messages": [
+                    {"role": "system", "content": f"Tu es LYRA, tutrice {niveau}. Analyse l'image avec rigueur."},
+                    {"role": "user", "content": [
+                        {"type": "text", "text": q},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
+                    ]}
+                ]
+            },
+            timeout=60
+        )
+        r.raise_for_status()
+        return r.json()["choices"][0]["message"]["content"]
+    except requests.exceptions.HTTPError as e:
+        code = e.response.status_code if e.response else 0
+        return f"❌ Erreur Vision {code}: {e.response.text[:400] if e.response else str(e)}"
+    except Exception as e:
+        return f"⚠️ Impossible d'analyser: {e}"
+
+def transcribe(b):
+    if not KEY: return ""
+    try:
+        files = {"file": ("a.wav", b, "audio/wav")}
+        data = {"model": "whisper-large-v3", "language": "fr"}
+        r = requests.post("https://api.groq.com/openai/v1/audio/transcriptions", headers={"Authorization": f"Bearer {KEY}"}, files=files, data=data, timeout=60)
+        r.raise_for_status()
+        return r.json().get("text", "")
+    except: return ""
+
+def extract_document_text(uploaded_file):
+    name = uploaded_file.name.lower()
+    if name.endswith(".txt"):
+        return uploaded_file.getvalue().decode("utf-8", errors="ignore")
+    if name.endswith(".pdf"):
+        try:
+            import PyPDF2
+            reader = PyPDF2.PdfReader(uploaded_file)
+            return "\n".join(page.extract_text() or "" for page in reader.pages)
+        except ImportError:
+            return "[PyPDF2 non installé]"
+        except Exception:
+            return "[PDF illisible]"
+    return ""
+
+with st.sidebar:
+    st.markdown("## ✨ LYRA")
+    if not KEY:
+        st.markdown('<div class="lyra-warning">Clé GROQ_API_KEY absente des secrets.</div>', unsafe_allow_html=True)
+    if st.button("➕ Nouvelle conversation", use_container_width=True):
+        new_id = str(uuid.uuid4())
+        st.session_state.conversations[new_id] = {"title": "Nouvelle conversation", "messages": []}
+        st.session_state.current_conv = new_id
+        st.rerun()
+    st.caption("Conversations")
+    for conv_id, conv in list(st.session_state.conversations.items()):
+        cols = st.columns([5, 1])
+        active = conv_id == st.session_state.current_conv
+        with cols[0]:
+            st.markdown('<div class="conv-btn">', unsafe_allow_html=True)
+            if st.button(("🟢 " if active else "") + conv["title"], key=f"sel_{conv_id}", use_container_width=True):
+                st.session_state.current_conv = conv_id
+                st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+        with cols[1]:
+            if len(st.session_state.conversations) > 1 and st.button("🗑️", key=f"del_{conv_id}"):
+                del st.session_state.conversations[conv_id]
+                if st.session_state.current_conv == conv_id:
+                    st.session_state.current_conv = next(iter(st.session_state.conversations))
+                st.rerun()
+    st.markdown("---")
+    # FIX BUG 3: fallback si segmented_control n'existe pas
+    try:
+        cycle = st.segmented_control("Cycle", list(CYCLES.keys()), default=st.session_state.cycle)
+        if cycle: st.session_state.cycle = cycle
+        niveau = st.segmented_control("Niveau", CYCLES[st.session_state.cycle], default=st.session_state.niveau if st.session_state.niveau in CYCLES[st.session_state.cycle] else CYCLES[st.session_state.cycle][0])
+        if niveau: st.session_state.niveau = niveau
+    except:
+        cycle = st.selectbox("Cycle", list(CYCLES.keys()), index=list(CYCLES.keys()).index(st.session_state.cycle))
+        st.session_state.cycle = cycle
+        niveau = st.selectbox("Niveau", CYCLES[cycle], index=CYCLES[cycle].index(st.session_state.niveau) if st.session_state.niveau in CYCLES[cycle] else 0)
+        st.session_state.niveau = niveau
+    st.caption(f"🔒 Verrouillé sur {st.session_state.niveau}")
+    st.markdown("---")
+    st.file_uploader("📸 Photo exo", type=["jpg", "png", "jpeg"], key="up")
+    st.camera_input("Caméra", key="cam", label_visibility="collapsed")
+    st.audio_input("🎙️ Vocal", key="aud", label_visibility="collapsed")
+    st.file_uploader("📄 Document (pdf/txt)", type=["pdf", "txt"], key="doc")
+    st.markdown("---")
+    font_choice = st.select_slider("🔠 Taille du texte", options=["Petite", "Normale", "Grande"], value=st.session_state.font_size)
+    st.session_state.font_size = font_choice
+    st.markdown("---")
+    with st.expander("ℹ️ À propos de LYRA"):
+        st.caption("LYRA est une IA et peut faire des erreurs — vérifie avec ton professeur.")
+        st.caption(PRIVACY_NOTE)
+
+_size_map = {"Petite": "15px", "Normale": "17px", "Grande": "20px"}
+st.markdown(f"<style>:root {{ --lyra-font-size: {_size_map[st.session_state.font_size]}; }}</style>", unsafe_allow_html=True)
+
+st.markdown(f"### ✨ LYRA • {st.session_state.cycle} — {st.session_state.niveau}")
+st.caption("Ta tutrice pédagogique : elle t'aide à comprendre, pas seulement à trouver la réponse")
+
+for m in current_messages():
+    with st.chat_message(m["role"]): st.markdown(m["content"])
+
+img = st.session_state.get("cam") or st.session_state.get("up")
+if img:
+    if st.button("📸 Analyser la photo"):
+        ans = call_vision("Résous l'exercice sur l'image étape par étape", img.getvalue(), st.session_state.niveau)
+        current_messages().append({"role": "user", "content": "📸 [Photo d'exercice]"})
+        current_messages().append({"role": "assistant", "content": ans})
+        set_conv_title_from_first_message("Photo d'exercice")
+        st.rerun()
+
+aud = st.session_state.get("aud")
+if aud:
+    txt = transcribe(aud.getvalue())
+    if txt:
+        current_messages().append({"role": "user", "content": f"🎙️ {txt}"})
+        set_conv_title_from_first_message(txt)
+        if detect_crisis(txt):
+            current_messages().append({"role": "assistant", "content": CRISIS_MESSAGE})
+            st.rerun()
+        else:
+            with st.chat_message("assistant"):
+                full = st.write_stream(stream_text(txt, st.session_state.niveau, st.session_state.cycle))
+            current_messages().append({"role": "assistant", "content": full})
+            st.rerun()
+
+q = st.chat_input(f"Question de {st.session_state.niveau}...")
+if q:
+    doc_text = ""
+    doc_file = st.session_state.get("doc")
+    if doc_file is not None:
+        doc_text = extract_document_text(doc_file)
+    current_messages().append({"role": "user", "content": q + (f"\n\n📄 *(avec {doc_file.name})*" if doc_file else "")})
+    set_conv_title_from_first_message(q)
+    with st.chat_message("user"):
+        st.markdown(q)
+    if detect_crisis(q):
+        current_messages().append({"role": "assistant", "content": CRISIS_MESSAGE})
+    else:
+        with st.chat_message("assistant"):
+            full = st.write_stream(stream_text(q, st.session_state.niveau, st.session_state.cycle, extra_context=doc_text))
+        current_messages().append({"role": "assistant", "content": full})
+    st.rerun()
+
+st.markdown('<div class="lyra-footer">LYRA est une IA et peut faire des erreurs — vérifie les points importants avec ton professeur.</div>', unsafe_allow_html=True)
